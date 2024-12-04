@@ -1,9 +1,12 @@
+
+## Beacon Programming Language
+
 **\# Beacon: A Blazing-Fast Programming Language**
 
 **🎈🎉🎊
 **🚀 Blazing-Fast Development, C-Powered Performance**
 
-Beacon is a new programming language designed to supercharge your development workflow. It leverages the power of C for lightning-fast execution, while providing a streamlined syntax for rapid prototyping and deployment.
+Beacon is a new object oriented and interpreted programming language designed to supercharge your development workflow. It leverages the power of C for lightning-fast execution, while providing a streamlined syntax for rapid prototyping and deployment.
 
 **Key Features:**
 
@@ -15,7 +18,7 @@ Beacon is a new programming language designed to supercharge your development wo
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/Beacon-Ofhope/beacon
+    git clone [https://github.com/Beacon-Ofhope/beacon](https://github.com/Beacon-Ofhope/beacon)
     ```
 2.  **Build the Compiler:**
     ```bash
@@ -33,7 +36,7 @@ Beacon is a new programming language designed to supercharge your development wo
 
 **Join the Community:**
 
-  * **GitHub:** [https://github.com/Beacon-Ofhope/beacon](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/Beacon-Ofhope/beacon)
+  * **GitHub:** [[https://github.com/Beacon-Ofhope/beacon](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/Beacon-Ofhope/beacon)](https://github.com/Beacon-Ofhope/beacon](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/Beacon-Ofhope/beacon))
   * **Discord:** [Discord Link]
   * **Twitter:** [@BeaconLang]
 
