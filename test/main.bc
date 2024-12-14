@@ -1,0 +1,17 @@
+
+a = 'hello world'
+
+
+if (12) {
+    a = 70
+
+} elif (13){
+    a='elif'
+
+} else {
+    a = 'else'
+
+}
+
+print(a)
+

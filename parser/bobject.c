@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "dobject.h"
+#include "bobject.h"
 
 
 unsigned int hash(const char *key) {
@@ -20,11 +20,11 @@ unsigned int hash(const char *key) {
     return value;
 }
 
-entry_t *pair_stack(const char *key, Dobject *value) {
+entry_t *pair_stack(const char *key, Bobject *value) {
     // allocate the entry
     entry_t *entry = malloc(sizeof(entry_t) * 1);
     entry->key = malloc(strlen(key) + 1);
-    entry->value = (Dobject*)malloc(sizeof(Dobject));
+    entry->value = (Bobject*)malloc(sizeof(Bobject));
 
     // copy the key and value in place
     strcpy(entry->key, key);
@@ -38,7 +38,7 @@ entry_t *pair_stack(const char *key, Dobject *value) {
 
 Stack* create_stack(void) {
     // allocate table
-    Stack* hashtable = (Stack*)malloc(sizeof(Stack));
+    Stack* hashtable = malloc(sizeof(Stack));
 
     // allocate table entries
     hashtable->entries = malloc(sizeof(entry_t*) * TABLE_SIZE);
@@ -52,7 +52,7 @@ Stack* create_stack(void) {
     return hashtable;
 }
 
-void add_to_stack(Stack *hashtable, const char *key, Dobject *value) {
+void add_to_stack(Stack *hashtable, const char *key, Bobject *value) {
     unsigned int slot = hash(key);
 
     // try to look up an entry set
@@ -87,7 +87,7 @@ void add_to_stack(Stack *hashtable, const char *key, Dobject *value) {
     prev->next = pair_stack(key, value);
 }
 
-Dobject* get_from_stack(Stack *hashtable, const char *key) {
+Bobject* get_from_stack(Stack *hashtable, const char *key) {
     unsigned int slot = hash(key);
 
     // try to find a valid slot
@@ -191,9 +191,9 @@ void print_stack(Stack *hashtable) {
 }
 
 // DATATYPES
-Dobject* b_None(){
-    Dobject* None = malloc(sizeof(Dobject));
-    None->type = D_NONE;
+Bobject* b_None(){
+    Bobject* None = malloc(sizeof(Bobject));
+    None->type = B_NONE;
     None->value.str_value = "None";
 
     return None;

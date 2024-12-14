@@ -1,38 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "dcode.h"
+#include "bcode.h"
 #include "bytec.h"
-#include "dobject.h"
+#include "bobject.h"
 #include "eval.h"
 
-Eval* evaluator_read(Dcode** toks){
-	Eval* pls = (struct EVAL_UP*)malloc(sizeof(struct EVAL_UP));
-	pls->tok = *toks;
+Eval * evaluator_read(Inter * exec, Stack * memory){
+	Eval* run = malloc(sizeof(Eval));
+	run->tok = exec->start;
+    run->file = exec->file;
+    run->memory = memory;
 
-	return pls;
+	return run;
 }
 
-void evaluator_advance(Eval* pls){
-	if (pls->tok != NULL)
-		pls->tok = pls->tok->next;
+void evaluator_advance(Eval* run){
+	if (run->tok != NULL)
+		run->tok = run->tok->next;
 }
 
-void appendData(Dcode** head, Dcode* newToken) {
-    if (*head == NULL) {
-        *head = newToken;
-    } else {
-        Dcode* current = *head;
-        while (current->next != NULL) {
-            current = current->next;
-        }
-        current->next = newToken;
-    }
-}
-
-void evaluator_start(Eval* pls, Stack* stack){
-
-	while (pls->tok != NULL) {
-		pls->tok->func(pls->tok, stack);
-        evaluator_advance(pls);
-    }
+void evaluator_start(Eval * run){
+	while (run->tok != NULL) {
+		run->tok->func(run->tok, run->memory);
+        evaluator_advance(run);
+	}
 }

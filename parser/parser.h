@@ -4,21 +4,29 @@
 
 #include "lexer.h"
 
-typedef enum {
-	P_NUM=0,
+typedef enum
+{
+	P_NUM = 0,
 	P_STR,
-    P_VAR,
-    P_BIN_OP,
+	P_VAR,
+	P_BIN_OP,
 	P_VAR_ASSIGN,
+	P_LIST,
 	P_FN,
-    P_FN_CALL,
+	P_FN_CALL,
+	P_CLASS,
+	P_FOR,
+	P_WHILE,
+	P_IF,
+	P_ELSE,
+	P_IF_ELSE,
 } AstType;
 
 typedef struct ASTNode {
     AstType type;
     union {
         char* str_value;
-				double num_value;
+		double num_value;
     } value;
     struct ASTNode* left;
     struct ASTNode* right;
@@ -29,31 +37,20 @@ typedef struct ASTNode {
 
 typedef struct PARSE_UP{
 	Token* tok;
+    char* file;
+	AstNode* start;
+	AstNode* recent;
 } Parser;
 
 
-Parser* parser_read(Token** toks);
+Parser* parser_read(const Lexer* lex);
 
-void parser_advance(Parser* pls);
+void parser_tree(Parser* pls);
 
-void appendNode(AstNode** head, AstNode* newToken);
+AstNode* parser_eval(Parser* pls);
 
-AstNode* parser_factor(Parser* pls, char* end);
+AstNode * parser_add_sub(Parser * pls);
 
-AstNode* parser_mult(Parser* pls, char* end);
-
-AstNode* parser_eval(Parser* pls, char* end);
-
-void append_parser_list(AstNode** head, AstNode* newToken);
-
-AstNode* parser_get_arguments(Parser* pls);
-
-AstNode* parser_id_call(Parser* pls, char* variable, char* end);
-
-AstNode* parse_variable(Parser* pls);
-
-void parser_tree(Parser* pls, AstNode** head);
-
-
+AstNode * parser_mult(Parser * pls);
 
 #endif

@@ -51,33 +51,17 @@ typedef struct TOKEN{
 typedef struct LEX_UP{
 	char tok;
 	char * code;
+	char * file;
 	unsigned int pos;
 	unsigned int line;
 	unsigned int code_len;
 
+	struct TOKEN* start;
+	struct TOKEN* resent;
 } Lexer;
 
-Token* init_token(char* value, TokenType type, unsigned int line);
+Lexer* lexer_read(char * code, char* file);
 
-void appendToken(Token** head, Token* newToken);
-
-Lexer* lexer_read(char * code);
-
-void lexer_advance(Lexer* lex);
-
-Token* keyword_id(char* value, Lexer* lex);
-
-Token* lex_id(Lexer* lex);
-
-Token* lex_num(Lexer* lex);
-
-Token* lex_eqs(Lexer* lex);
-
-Token* lex_newline(Lexer* lex);
-
-void lex_special(Lexer* lex, Token** head);
-
-void lexer_process(Lexer* lex, Token** head);
-
+void lexer_process(Lexer* lex);
 
 #endif

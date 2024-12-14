@@ -1,39 +1,51 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include "lexer.h"
 #include <ctype.h>
 #include <stdbool.h>
-#include "lexer.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-Token* init_token(char* value, TokenType type, unsigned int line){
-	Token* token = calloc(1, sizeof(Token));
+#include "../Include/bapi.h"
+
+Token * init_token(char* value, TokenType type, unsigned int line){
+	Token* token = (Token*)malloc(sizeof(Token));
 	token->value = value;
 	token->type = type;
 	token->line = line;
 	token->next = NULL;
+
+    return token;
 }
 
-void appendToken(Token** head, Token* newToken) {
-    if (*head == NULL) {
-        *head = newToken;
+void lexer_syntax_error(char* error, const Lexer* lex){
+	printf("Syntax_error: %s\n\t line: %d, file: '%s'\n\t char: %c\n", error, lex->line, lex->file, lex->tok);
+    exit(0);
+}
+
+void appendToken(Token* newToken, Lexer* lex) {
+	if (lex->resent == NULL){
+        lex->start = newToken;
+  		lex->resent = newToken;
     } else {
-        Token* current = *head;
-        while (current->next != NULL) {
-            current = current->next;
-				}
-        current->next = newToken;
+    	lex->resent->next = newToken;
+        lex->resent = newToken;
     }
 }
 
-Lexer* lexer_read(char * code){
+Lexer* lexer_read(char * code, char* file){
 	Lexer* lex = calloc(1, sizeof(struct LEX_UP));
+	lex->resent = NULL;
+    lex->start = NULL;
+
+	lex->file = file;
+	lex->code = code;
 
 	lex->line = 1;
-	lex->code = code;
 	lex->code_len = strlen(code);
 
 	lex->pos = 0;
 	lex->tok = code[lex->pos];
+	return lex;
 }
 
 void lexer_advance(Lexer* lex){
@@ -50,74 +62,82 @@ void lexer_back(Lexer* lex){
 	}
 }
 
-Token* keyword_id(char* value, Lexer* lex){
-	if (strcmp("fun", value) == 0){
-    	return init_token("", TK_FUN, lex->line);
+Token* keyword_id(char* value, const Lexer* lex){
+    if (strcmp("fun", value) == 0)
+        return init_token("", TK_FUN, lex->line);
 
-	} else if (strcmp("as", value) == 0){
-    	return init_token("", TK_AS, lex->line);
+    if (strcmp("as", value) == 0)
+        return init_token("", TK_AS, lex->line);
 
-	} else if (strcmp("class", value) == 0){
-    	return init_token("", TK_FUN, lex->line);
+    if (strcmp("import", value) == 0)
+        return init_token("", TK_IMPORT, lex->line);
 
-	} else if (strcmp("import", value) == 0){
-    	return init_token("", TK_IMPORT, lex->line);
+    if (strcmp("while", value) == 0)
+        return init_token("", TK_WHILE, lex->line);
 
-	} else if (strcmp("while", value) == 0){
-    	return init_token("", TK_WHILE, lex->line);
+    if (strcmp("for", value) == 0)
+        return init_token("", TK_FOR, lex->line);
 
-	} else if (strcmp("for", value) == 0){
-    	return init_token("", TK_FOR, lex->line);
+    if (strcmp("in", value) == 0)
+        return init_token("", TK_IN, lex->line);
 
-	} else if (strcmp("in", value) == 0){
-    	return init_token("", TK_IN, lex->line);
+    if (strcmp("not", value) == 0)
+        return init_token("", TK_NOT, lex->line);
 
-	} else if (strcmp("not", value) == 0){
-    	return init_token("", TK_NOT, lex->line);
+    if (strcmp("True", value) == 0)
+        return init_token("", TK_TRUE, lex->line);
 
-	} else if (strcmp("True", value) == 0){
-    	return init_token("", TK_TRUE, lex->line);
+    if (strcmp("False", value) == 0)
+        return init_token("", TK_FALSE, lex->line);
 
-	} else if (strcmp("False", value) == 0){
-    	return init_token("", TK_FALSE, lex->line);
+    if (strcmp("None", value) == 0)
+        return init_token("", TK_NONE, lex->line);
 
-	} else if (strcmp("None", value) == 0){
-    	return init_token("", TK_NONE, lex->line);
+    if (strcmp("pass", value) == 0)
+        return init_token("", TK_PASS, lex->line);
 
-	} else if (strcmp("pass", value) == 0){
-    	return init_token("", TK_PASS, lex->line);
+    if (strcmp("break", value) == 0)
+        return init_token("", TK_BREAK, lex->line);
 
-	} else if (strcmp("break", value) == 0){
-    	return init_token("", TK_BREAK, lex->line);
+    if (strcmp("continue", value) == 0)
+        return init_token("", TK_CONT, lex->line);
 
-	} else if (strcmp("continue", value) == 0){
-    	return init_token("", TK_CONT, lex->line);
+    if (strcmp("if", value) == 0)
+        return init_token("", TK_IF, lex->line);
 
-	} else if (strcmp("if", value) == 0){
-    	return init_token("", TK_IF, lex->line);
+    if (strcmp("elif", value) == 0)
+        return init_token("", TK_ELIF, lex->line);
 
-	} else if (strcmp("elif", value) == 0){
-    	return init_token("", TK_ELIF, lex->line);
+    if (strcmp("else", value) == 0)
+        return init_token("", TK_ELSE, lex->line);
 
-	} else if (strcmp("else", value) == 0){
-    	return init_token("", TK_ELSE, lex->line);
-	}
-
-	return init_token(value, TK_ID, lex->line);
+    return init_token(value, TK_ID, lex->line);
 }
 
 Token* lex_id(Lexer* lex) {
-    char* value = (char *)malloc(1);
-    int capacity = 1;
+    char* value = malloc(2);
+
+    if (value == NULL){
+        lexer_syntax_error("string memory allocation failed...", lex);
+    }
+
+    int capacity = 2;
     int len = 0;
 
     while (lex->tok != '\0' && (isalnum(lex->tok) !=0 || lex->tok == '_')) {
-        if (len == capacity) {
-            capacity *= 2;
-            value = (char *)realloc(value, capacity);
+        if ((len+1) == capacity) {
+            capacity += 1;
+            char* temp = realloc(value, capacity);
+
+            if (temp == NULL) {
+                free(value);
+                lexer_syntax_error("memory allocation for string failed", lex);
+            }
+            value = temp;
         }
 
-        value[len++] = lex->tok;
+        value[len] = lex->tok;
+        len++;
         lexer_advance(lex);
     }
 
@@ -126,17 +146,23 @@ Token* lex_id(Lexer* lex) {
 }
 
 Token* lex_num(Lexer* lex) {
-    char* value = (char *)malloc(1);
-    int capacity = 1;
+    char* value = malloc(2);
+    int capacity = 2;
     int len = 0;
 
-    while (isdigit(lex->tok) !=0 ) {
-        if (len == capacity) {
-            capacity *= 2;
-            value = (char *)realloc(value, capacity);
+    while (lex->tok != '\0' && isdigit(lex->tok) !=0) {
+   		if (lex->tok == '_'){
+            lexer_advance(lex);
+            continue;
         }
 
-        value[len++] = lex->tok;
+        if ((len+1) == capacity) {
+            capacity += 1;
+            value = realloc(value, capacity);
+        }
+
+        value[len] = lex->tok;
+        len++;
         lexer_advance(lex);
     }
 
@@ -145,32 +171,33 @@ Token* lex_num(Lexer* lex) {
 }
 
 Token* lex_string(Lexer* lex) {
-		char qout = lex->tok;
-		lexer_advance(lex);
+    const char quot = lex->tok;
+    lexer_advance(lex);
 
-    char* value = (char *)malloc(1);
-    int capacity = 1;
+    char* value = malloc(100);
     int len = 0;
+    int capacity = 100;
 
-    while (lex->tok != '\0' && lex->tok != qout ) {
-        if (len == capacity) {
-            capacity *= 2;
-            value = (char *)realloc(value, capacity);
+    while (lex->tok != '\0' && lex->tok != quot ) {
+        if (len == capacity-1) {
+            capacity += 100;
+            value = (char*)realloc(value, capacity);
         }
 
-        value[len++] = lex->tok;
+        value[len] = lex->tok;
+        len++;
         lexer_advance(lex);
     }
 
-		lexer_advance(lex);
-    value[len] = '\0';
+    if (lex->tok == '\0'){
+    	lexer_syntax_error("The string quotes are not closed.", lex);
+    }
 
-    return init_token(value, TK_STR, lex->line);
-}
-
-Token* lex_eqs(Lexer* lex){
+    value = realloc(value, len+1);
 	lexer_advance(lex);
-    return init_token("=", TK_EQUALS, lex->line);
+
+    value[len] = '\0';
+    return init_token(value, TK_STR, lex->line);
 }
 
 Token* lex_newline(Lexer* lex){
@@ -187,33 +214,35 @@ Token* lex_operator(Lexer* lex){
 
 	lexer_advance(lex);
 
-
-	if (strcmp("*", value) == 0 || strcmp("/", value) == 0)
+	if (strcmp("*", value) == 0 || strcmp("/", value) == 0 || strcmp("%", value) == 0)
     	return init_token(value, TK_MULT_DIV, lex->line);
 
    	return init_token(value, TK_ADD_SUB, lex->line);
 }
 
-void lex_special(Lexer* lex, Token** head){
+void lex_special(Lexer* lex){
 	switch (lex->tok){
 		case '(':
-			return appendToken(head, init_token("", TK_LPAREN, lex->line));
+			return appendToken(init_token("", TK_LPAREN, lex->line), lex);
 		case ')':
-			return appendToken(head, init_token("", TK_RPAREN, lex->line));
+			return appendToken(init_token("", TK_RPAREN, lex->line), lex);
 		case ']':
-			return appendToken(head, init_token("", TK_RBRACK, lex->line));
+			return appendToken(init_token("", TK_RBRACK, lex->line), lex);
 		case '[':
-			return appendToken(head, init_token("", TK_LBRACK, lex->line));
+			return appendToken(init_token("", TK_LBRACK, lex->line), lex);
 		case '}':
-			return appendToken(head, init_token("", TK_RBRACE, lex->line));
+			return appendToken(init_token("", TK_RBRACE, lex->line), lex);
 		case '{':
-			return appendToken(head, init_token("", TK_LBRACE, lex->line));
+			return appendToken(init_token("", TK_LBRACE, lex->line), lex);
 		case ',':
-			return appendToken(head, init_token("", TK_COMMA, lex->line));
+			return appendToken(init_token("", TK_COMMA, lex->line), lex);
 		case ';':
-			return appendToken(head, init_token("", TK_SEMICOLON, lex->line));
+			return appendToken(init_token("", TK_SEMICOLON, lex->line), lex);
 		default:
-			break;
+            if (isspace(lex->tok) == 0){
+				lexer_syntax_error("Unexpected syntax in code", lex);
+            }
+            break;
 	}
 }
 
@@ -224,11 +253,13 @@ void skip_comment(Lexer* lex){
 		while (lex->tok != '\0' && lex->tok != '\n'){
 			lexer_advance(lex);
 		}
-	}
+	} else {
+    	lexer_syntax_error("Unexpected syntax, must be / to comment", lex);
+    }
 }
 
 Token* lex_conditions(Lexer* lex){
-    char op = lex->tok;
+    const char op = lex->tok;
 	lexer_advance(lex);
 
 	if (lex->tok != '\0' && lex->tok == '='){
@@ -238,38 +269,39 @@ Token* lex_conditions(Lexer* lex){
 	}
 
 	char value2[2] = {op, '\0'};
+
+    if (op == '='){
+		return init_token(value2, TK_EQUALS, lex->line);
+    }
+
 	return init_token(value2, TK_GREATER_EQS, lex->line);
 }
 
-
-void lexer_process(Lexer* lex, Token** head){
+void lexer_process(Lexer* lex){
 	while (lex->tok != '\0'){
 		if (isalpha(lex->tok ) != 0 || lex->tok == '_'){
-			appendToken(head, lex_id(lex));
+            appendToken(lex_id(lex), lex);
 		}
 		else if (isdigit(lex->tok) !=0){
-			appendToken(head, lex_num(lex));
-		}
+			appendToken(lex_num(lex), lex);
+        }
 		else if (lex->tok == '\'' || lex->tok == '"'){
-			appendToken(head, lex_string(lex));
-		}
-		else if (lex->tok == '='){
-			appendToken(head, lex_eqs(lex));
+			appendToken(lex_string(lex), lex);
 		}
 		else if (lex->tok == '\n'){
-			appendToken(head, lex_newline(lex));
+			appendToken(lex_newline(lex), lex);
 		}
 		else if (lex->tok == '/') {
 			skip_comment(lex);
 		}
-		else if (strchr("<>!", lex->tok) != NULL) {
-			appendToken(head, lex_conditions(lex));
+		else if (strchr("<>!=", lex->tok) != NULL) {
+			appendToken(lex_conditions(lex), lex);
 		}
-		else if (strchr("+-/*", lex->tok) != NULL){
-			appendToken(head, lex_operator(lex));
+		else if (strchr("+-/*%", lex->tok) != NULL){
+			appendToken(lex_operator(lex), lex);
 		}
 		else{
-			lex_special(lex, head);
+			lex_special(lex);
 			lexer_advance(lex);
 		}
 	}

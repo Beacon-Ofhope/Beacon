@@ -3,18 +3,20 @@
 #define H_EVALUATOR
 
 #include "parser.h"
-#include "dcode.h"
-#include "dobject.h"
+#include "bcode.h"
+#include "bobject.h"
 
 
 typedef struct EVAL_UP{
-	Dcode* tok;
+	Bcode * tok;
+	char * file;
+	Stack * memory;
 } Eval;
 
 
-Eval* evaluator_read(Dcode** toks);
+Eval * evaluator_read(Inter * exec, Stack * memory);
 
-void evaluator_start(Eval* pls, Stack* stack);
+void evaluator_start(Eval * pls);
 
 
 #endif
