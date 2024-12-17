@@ -88,12 +88,24 @@ Bcode* i_mk_list(AstNode* tok, Inter* pls){
     return bin;
 }
 
+Bcode* i_get_attribute(AstNode* tok, Inter * pls){
+    Bcode* bin = mk_safe_bcode();
+    bin->type = I_ATTR;
+    bin->func = bt_get_attribute;
+    bin->value.str_value = copy_string_safely(tok->value.str_value);
+    bin->left = i_eval_ast(tok->left, pls);
+    return bin;
+}
+
 Bcode* i_eval_ast(AstNode* value, Inter * pls){
     if (value->type == P_FN_CALL) {
         return i_call_function(value, pls);
 
     } else if (value->type == P_LIST){
         return i_mk_list(value, pls);
+
+    } else if (value->type == P_ATTR){
+        return i_get_attribute(value, pls);
 
     }
 
@@ -141,25 +153,6 @@ Bcode* i_eval_ast(AstNode* value, Inter * pls){
 	}
     return bin;
 }
-
-
-//Dcode* make_function(Inter* pls){
-//    Dcode* bin = (Dcode*)malloc(sizeof(Dcode));
-//    bin->type = I_FN;
-//    bin->func = bt_make_function;
-//    bin->value.str_value = pls->tok->value.str_value;
-//
-//    Dcode* dcode_parameters_head = NULL;
-//    Interpo_start(Interpo_read(&pls->tok->left), &dcode_parameters_head);
-//    bin->left = dcode_parameters_head;
-//
-//    Dcode* dcode_block_head = NULL;
-//    Interpo_start(Interpo_read(&pls->tok->right), &dcode_block_head);
-//
-//    bin->right = dcode_block_head;
-//    return bin;
-//}
-
 
 Bcode* i_make_variable(Inter* pls) {
     Bcode* bin = mk_safe_bcode();
@@ -215,13 +208,54 @@ Bcode *i_make_if(Inter *pls) {
     return bin;
 }
 
+Bcode *i_make_while(Inter *pls) {
+    Bcode *whl = mk_safe_bcode();
+    whl->type = I_WHILE;
+    whl->func = bt_while;
+    whl->left = i_eval_ast(pls->tok->left, pls);
+    whl->right = i_code_to_bytecode(pls, pls->tok);
+
+    return whl;
+}
+
+Bcode *i_make_function(Inter *pls) {
+    Bcode *fn = mk_safe_bcode();
+    fn->type = I_FN;
+    fn->value.str_value = copy_string_safely(pls->tok->value.str_value);
+    fn->func = bt_mk_fun;
+
+    fn->left = i_mk_list(pls->tok, pls);
+    fn->right = i_code_to_bytecode(pls, pls->tok);
+    return fn;
+}
+
+Bcode *i_make_class(Inter *pls) {
+    Bcode *fn = mk_safe_bcode();
+    fn->type = I_CLASS;
+    fn->value.str_value = copy_string_safely(pls->tok->value.str_value);
+    fn->func = bt_mk_class;
+
+    fn->left = i_mk_list(pls->tok, pls);
+    fn->right = i_code_to_bytecode(pls, pls->tok);
+    return fn;
+}
+
 void inter_interpret(Inter* pls) {
     while (pls->tok != NULL) {
         if (pls->tok->type == P_VAR_ASSIGN){
             append_bcode(pls, i_make_variable(pls));
 
+        } else if (pls->tok->type == P_FN) {
+            append_bcode(pls, i_make_function(pls));
+
+        } else if (pls->tok->type == P_CLASS) {
+            append_bcode(pls, i_make_class(pls));
+
         } else if (pls->tok->type == P_IF) {
             append_bcode(pls, i_make_if(pls));
+
+        } else if (pls->tok->type == P_WHILE) {
+            append_bcode(pls, i_make_while(pls));
 
         } else {
             append_bcode(pls, i_eval_ast(pls->tok, pls));

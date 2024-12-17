@@ -1,11 +1,4 @@
 
-x = 1
-y = 5
-
-v = print(x)
-
-
-fun sum(x, z=print(4))){
-	print('hello world')
-}
-
+// VALNERBILITIES
+parser_function ===== string name copying
+parser_class

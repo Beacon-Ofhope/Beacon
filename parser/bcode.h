@@ -5,20 +5,23 @@
 #include "parser.h"
 #include "bobject.h"
 
-typedef enum {
-	I_NUM=0,
-	I_STR,
-	I_BOOL,
-	I_NONE,
-	I_LIST,
-	I_DICT,
-	I_VAR,
-	I_VAR_MAKE,
-	I_FN,
-	I_CALL_FN,
+typedef enum
+{
+    I_NUM = 0,
+    I_STR,
+    I_BOOL,
+    I_NONE,
+    I_LIST,
+    I_DICT,
+    I_VAR,
+    I_VAR_MAKE,
+    I_CLASS,
+    I_FN,
+    I_CALL_FN,
+    I_ATTR,
     I_IF,
+    I_WHILE,
 } Bcode_Type;
-
 
 typedef struct BCODE {
     Bcode_Type type;
@@ -45,6 +48,8 @@ Inter * inter_read(const Parser * pls);
 
 void inter_interpret(Inter * pls);
 
-Bcode * i_call_function(AstNode* tok, Inter * pls);
+Bcode *i_eval_ast(AstNode *value, Inter *pls);
+
+Bcode *i_call_function(AstNode * tok, Inter * pls);
 
 #endif

@@ -14,6 +14,7 @@ typedef enum
 	P_LIST,
 	P_FN,
 	P_FN_CALL,
+	P_ATTR,
 	P_CLASS,
 	P_FOR,
 	P_WHILE,
@@ -52,5 +53,9 @@ AstNode* parser_eval(Parser* pls);
 AstNode * parser_add_sub(Parser * pls);
 
 AstNode * parser_mult(Parser * pls);
+
+AstNode *parser_call_function(AstNode *node, Parser *pls);
+
+AstNode *parser_get_attribute(AstNode *node, Parser *pls);
 
 #endif

@@ -1,8 +1,9 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
-typedef enum {
-    TK_ID=0,
+typedef enum
+{
+    TK_ID = 0,
     TK_NUM,
     TK_FLOAT,
     TK_STR,
@@ -15,6 +16,7 @@ typedef enum {
     TK_EQUALS,
     TK_NL,
     TK_COMMA,
+    TK_DOT,
     TK_FUN,
     TK_CLASS,
     TK_WHILE,
@@ -38,7 +40,6 @@ typedef enum {
     TK_MULT_DIV,
     TK_GREATER_EQS,
 } TokenType;
-
 
 typedef struct TOKEN{
 	char * value;

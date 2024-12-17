@@ -1,17 +1,19 @@
 
-a = 'hello world'
-
-
-if (12) {
-    a = 70
-
-} elif (13){
-    a='elif'
-
-} else {
-    a = 'else'
-
+fun sum(x, y){
+    print(x+y)
 }
 
-print(a)
+sum(90, 10)
 
+class Person () {
+    fun _start(name, age){
+        name = name
+        age = age
+    }
+
+    fun greet(person){
+        print('Hello', person)
+    }
+}
+
+print(Person())

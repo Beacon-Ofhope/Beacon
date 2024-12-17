@@ -5,7 +5,7 @@
 #include "../parser/bobject.h"
 
 
-Bobject* print(Bobject* args, Stack* stack){
+Bobject* print(Bobject* args, Bobject* fun, Stack* stack){
 	Bobject* arg = args;
 
 	while (arg != NULL){

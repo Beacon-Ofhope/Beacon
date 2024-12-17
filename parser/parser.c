@@ -115,13 +115,14 @@ AstNode* parser_id_call(Parser* pls, char * variable){
 	node->value.str_value = copy_string_safely(variable);
 	node->type = P_VAR;
 
-	while (pls->tok != NULL && (pls->tok->type == TK_LPAREN || pls->tok->type == TK_LBRACK )){
+	while (pls->tok != NULL && (pls->tok->type == TK_LPAREN || pls->tok->type == TK_LBRACK || \
+	pls->tok->type == TK_DOT)){
 		if (pls->tok->type == TK_LPAREN){
-		    AstNode* data = mk_safe_node();
-			data->type = P_FN_CALL;
-			data->left = node;
-			data->right = parser_get_arguments(pls);
-			node = data;
+			node = parser_call_function(node, pls);
+
+		} else if (pls->tok->type == TK_DOT){
+			node = parser_get_attribute(node, pls);
+		
 		}
 
 		parser_advance(pls);
@@ -162,6 +163,30 @@ AstNode* mk_list(Parser* pls){
 	return list;
 }
 
+AstNode *parser_get_attribute(AstNode *node, Parser *pls){
+	parser_advance(pls);
+
+	if (pls->tok == NULL || pls->tok->type != TK_ID){
+		parser_syntax_error("Invalid syntax, Expected name token for object attribute", pls);
+	}
+
+	AstNode *bin = mk_safe_node();
+	bin->left = node;
+	bin->value.str_value = copy_string_safely(pls->tok->value);
+	bin->type = P_ATTR;
+
+	return bin;
+}
+
+AstNode *parser_call_function(AstNode *node, Parser *pls){
+	AstNode *data = mk_safe_node();
+	data->type = P_FN_CALL;
+	data->left = node;
+	data->right = parser_get_arguments(pls);
+
+	return data;
+}
+
 AstNode* parser_factor(Parser* pls){
 	AstNode* node = mk_safe_node();
 
@@ -197,13 +222,14 @@ AstNode* parser_factor(Parser* pls){
 	}
 	parser_advance(pls);
 
-	while (pls->tok != NULL && (pls->tok->type == TK_LPAREN || pls->tok->type == TK_LBRACK )){
+	while (pls->tok != NULL && (pls->tok->type == TK_LPAREN || pls->tok->type == TK_LBRACK || \
+	pls->tok->type == TK_DOT)){
 		if (pls->tok->type == TK_LPAREN){
-			AstNode* data = mk_safe_node();
-			data->type = P_FN_CALL;
-			data->left = node;
-			data->right = parser_get_arguments(pls);
-			node = data;
+			node = parser_call_function(node, pls);
+		
+		} else if (pls->tok->type == TK_DOT){
+			node = parser_get_attribute(node, pls);
+		
 		}
 		parser_advance(pls);
 	}
@@ -283,7 +309,7 @@ AstNode* parse_variable(Parser* pls){
 
 		return ast;
 
-	} else if (pls->tok != NULL && pls->tok->type == TK_LPAREN){
+	} else if (pls->tok != NULL && (pls->tok->type == TK_LPAREN || pls->tok->type == TK_DOT)){
 		return parser_id_call(pls, name);
 
 	} else {
@@ -293,52 +319,6 @@ AstNode* parse_variable(Parser* pls){
 	parser_syntax_error("unexpected syntax when assigning data to a variable", pls);
 	return NULL;
 }
-//
-//AstNode* parser_get_parameters(Parser* pls){
-//	AstNode* parameters_head = NULL;
-//
-//	if (pls->tok->type != TK_LPAREN)
-//		syntax_error("unexpected syntax after fun name token, expected '('", pls->tok->line);
-//
-//	parser_advance(pls);
-//	char no_default_yet = 0;
-//
-//	while (pls->tok != NULL && pls->tok->type != TK_RPAREN){
-//		if (pls->tok->type == TK_ID){
-//			char* parameter = pls->tok->value;
-//			parser_advance(pls);
-//
-//			if (pls->tok != NULL && pls->tok->type == TK_EQUALS){
-//				AstNode* node = (AstNode*)malloc(sizeof(AstNode));
-//				parser_advance(pls);
-//
-//				node->type = P_VAR_ASSIGN;
-//				node->value.str_value = parameter;
-//				node->left = parser_eval(pls, ",)");
-//				appendNode(&parameters_head, node);
-//				no_default_yet = 1;
-//
-//			} else {
-//				if (no_default_yet == 1)
-//					syntax_error("unexpected syntax in fun declaration, non-default parameters come before all default one", pls->tok->line);
-//
-//				AstNode* node = (AstNode*)malloc(sizeof(AstNode));
-//
-//				node->value.str_value = parameter;
-//				node->type = P_VAR;
-//				appendNode(&parameters_head, node);
-//			}
-//		}
-//		else if (pls->tok->type == TK_COMMA)
-//			parser_advance(pls);
-//		else
-//			syntax_error("unexpected syntax in fun parameters", pls->tok->line);
-//
-//	}
-//
-//	parser_advance(pls);
-//	return parameters_head;
-//}
 
 void skip_whitespace(Parser* pls){
 	while (pls->tok != NULL && pls->tok->type == TK_NL)
@@ -402,25 +382,86 @@ AstNode* parser_collect_block(Parser* pls){
 	return par->start;
 }
 
-//AstNode* parse_function(Parser* pls){
-//	parser_advance(pls);
-//
-//	if (pls->tok->type != TK_ID)
-//		syntax_error("unexpected syntax after 'fun' token", pls->tok->line);
-//
-//	AstNode* ast = calloc(1, sizeof(AstNode));
-//	ast->value.str_value = pls->tok->value;
-//
-//	parser_advance(pls);
-//
-//	ast->left = parser_get_parameters(pls);
-//	ast->right = parser_collect_block(pls);
-//	ast->type = P_FN;
-//
-//	return ast;
-//}
+AstNode* parser_get_parameters(Parser * pls){
+	parser_advance(pls);
+	AstNode* args = NULL;
+	AstNode* recent = NULL;
 
-AstNode* parser_if_else(Parser* pls){
+    if (pls->tok == NULL)
+    	parser_syntax_error("Invalid syntax, cannot collect arguments", pls);
+
+	while (pls->tok != NULL && pls->tok->type != TK_RPAREN){
+		if (pls->tok->type == TK_NL || pls->tok->type == TK_COMMA){
+			parser_advance(pls);
+
+		} else {
+            if (pls->tok->type == TK_ID){
+                AstNode *def_param = parser_eval(pls);
+
+                if (pls->tok != NULL && pls->tok->type == TK_EQUALS){
+                    if(def_param->type != P_VAR){
+						free(def_param);
+                        parser_syntax_error("Invalid syntax in function arguments", pls);
+                    }
+
+                    parser_advance(pls);
+                    AstNode* mk_def_var = mk_safe_node();
+                    mk_def_var->type = P_VAR_ASSIGN;
+					mk_def_var->value.str_value = copy_string_safely(def_param->value.str_value);
+                    mk_def_var->left = parser_eval(pls);
+
+					free(def_param);
+					append_list_node(&args, &recent, mk_def_var);
+
+                } else {
+                    append_list_node(&args, &recent, def_param);
+                }
+			} else {
+				parser_syntax_error("Invalid syntax in function declartion parameters", pls);
+			}
+		}
+	}
+
+    if (pls->tok == NULL) {
+        parser_syntax_error("invalid syntax, missing closing ')' token in fun call.", pls);
+    }
+	parser_advance(pls);
+	return args;
+}
+
+AstNode* parse_function(Parser* pls){
+	parser_advance(pls);
+
+	if (pls->tok->type != TK_ID)
+		parser_syntax_error("unexpected syntax after 'fun' token", pls);
+
+	AstNode* ast = mk_safe_node();
+	ast->value.str_value = pls->tok->value;
+	parser_advance(pls);
+	ast->left = parser_get_parameters(pls);
+	ast->right = parser_collect_block(pls);
+	ast->type = P_FN;
+
+	return ast;
+}
+
+AstNode* parse_class(Parser* pls){
+	parser_advance(pls);
+
+	if (pls->tok->type != TK_ID)
+		parser_syntax_error("unexpected syntax after 'class' token", pls);
+
+	AstNode* ast = mk_safe_node();
+	ast->value.str_value = pls->tok->value;
+	parser_advance(pls);
+	ast->left = parser_get_parameters(pls);
+	ast->right = parser_collect_block(pls);
+	ast->type = P_CLASS;
+
+	return ast;
+}
+
+AstNode *parser_if_else(Parser* pls){
 	parser_advance(pls);
 
 	AstNode *bin = mk_safe_node();
@@ -479,14 +520,33 @@ AstNode* parse_if(Parser* pls){
 	return bin;
 }
 
+AstNode *parse_while(Parser *pls) {
+	parser_advance(pls);
+	AstNode *bin = mk_safe_node();
+
+	bin->left = parser_eval(pls);
+	bin->right = parser_collect_block(pls);
+	bin->type = P_WHILE;
+
+	return bin;
+}
+
 void parser_tree(Parser* pls) {
     while (pls->tok != NULL) {
-		// printf("%d...\n", pls->tok->type);
         if (pls->tok->type == TK_ID) {
             append_node(pls, parse_variable(pls));
 
 		} else if (pls->tok->type == TK_IF){
 			append_node(pls, parse_if(pls));
+
+		} else if (pls->tok->type == TK_FUN) {
+			append_node(pls, parse_function(pls));
+
+		} else if (pls->tok->type == TK_CLASS) {
+			append_node(pls, parse_class(pls));
+
+		} else if (pls->tok->type == TK_WHILE){
+			append_node(pls, parse_while(pls));
 
 		} else if (pls->tok->type == TK_NL){
 			parser_advance(pls);

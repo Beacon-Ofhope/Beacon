@@ -66,6 +66,9 @@ Token* keyword_id(char* value, const Lexer* lex){
     if (strcmp("fun", value) == 0)
         return init_token("", TK_FUN, lex->line);
 
+    if (strcmp("class", value) == 0)
+        return init_token("", TK_CLASS, lex->line);
+
     if (strcmp("as", value) == 0)
         return init_token("", TK_AS, lex->line);
 
@@ -236,7 +239,9 @@ void lex_special(Lexer* lex){
 			return appendToken(init_token("", TK_LBRACE, lex->line), lex);
 		case ',':
 			return appendToken(init_token("", TK_COMMA, lex->line), lex);
-		case ';':
+        case '.':
+            return appendToken(init_token("", TK_DOT, lex->line), lex);
+        case ';':
 			return appendToken(init_token("", TK_SEMICOLON, lex->line), lex);
 		default:
             if (isspace(lex->tok) == 0){

@@ -4,7 +4,7 @@
 #include "../parser/bobject.h"
 
 
-Bobject* print(Bobject* args, Stack* store);
+Bobject* print(Bobject* args, Bobject *fun, Stack* store);
 
 
 #endif

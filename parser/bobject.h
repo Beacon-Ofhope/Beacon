@@ -1,15 +1,17 @@
 #ifndef H_DOBJECT
 #define H_DOBJECT
 
-
-typedef enum {
-	B_NUM=0,
+typedef enum
+{
+	B_NUM = 0,
 	B_STR,
 	B_FN,
 	B_BOOL,
 	B_NONE,
 	B_LIST,
 	B_DICT,
+	B_TYPE,
+	B_OBJECT,
 } Bobject_Type;
 
 typedef struct STACK {
@@ -29,9 +31,11 @@ typedef struct BOBJECT {
 	} value;
 
 	Param* params;
-    struct BOBJECT* (*func)(struct BOBJECT*, Stack*);
-	struct BOBJECT *left;
+	struct BCODE *code;
+	struct STACK *attrs;
 	struct BOBJECT *next;
+	struct BOBJECT *left;
+	struct BOBJECT *(*func)(struct BOBJECT *, struct BOBJECT *, Stack *);
 } Bobject;
 
 #define TABLE_SIZE 200000

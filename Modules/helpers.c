@@ -4,9 +4,10 @@
 
 
 char* copy_string_safely(char * src) {
-    char* dest = malloc(strlen(src)+1);
-    strcpy(dest, src);
-    free(src);
-    return dest;
+    // char* dest = malloc(strlen(src)+1);
+    // strcpy(dest, src);
+    // free(src);
+    // return dest;
+    return src;
 }
 

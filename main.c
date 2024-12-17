@@ -60,6 +60,7 @@ void main(const int argc, char* argv[]){
 
     Stack * memory = create_stack();
     add_to_stack(memory, "print", bt_make_b_fun(print));
+    add_to_stack(memory, "_file", bt_mk_string(argv[1]));
 
     Eval * evaluator = evaluator_read(b_interpreter, memory);
     evaluator_start(evaluator);
