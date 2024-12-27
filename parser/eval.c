@@ -1,27 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "bcode.h"
-#include "bytec.h"
-#include "bobject.h"
-#include "eval.h"
 
-Eval * evaluator_read(Inter * exec, Stack * memory){
-	Eval* run = malloc(sizeof(Eval));
+#include "Includes/bytecode.h"
+#include "Includes/bobject.h"
+#include "Includes/bcode.h"
+#include "Includes/eval.h"
+
+Eval * evaluator_read(Inter *exec){
+	Eval* run = calloc(sizeof(Eval), 1);
+	run->start = exec->start;
 	run->tok = exec->start;
     run->file = exec->file;
-    run->memory = memory;
-
 	return run;
 }
 
-void evaluator_advance(Eval* run){
-	if (run->tok != NULL)
-		run->tok = run->tok->next;
-}
-
-void evaluator_start(Eval * run){
+void evaluator_start(Eval *run, bcon_State *bstate){
 	while (run->tok != NULL) {
-		run->tok->func(run->tok, run->memory);
-        evaluator_advance(run);
+		run->tok->func(run->tok, bstate);
+		run->tok = run->tok->next;
 	}
 }

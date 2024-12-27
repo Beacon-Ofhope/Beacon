@@ -7,25 +7,32 @@
 
 typedef enum
 {
-    I_NUM = 0,
-    I_STR,
-    I_BOOL,
-    I_NONE,
-    I_LIST,
-    I_DICT,
-    I_VAR,
-    I_VAR_MAKE,
-    I_CLASS,
-    I_FN,
-    I_CALL_FN,
-    I_ATTR,
-    I_IF,
-    I_WHILE,
-} Bcode_Type;
+    OP_NUMBER,
+    OP_STRING,
+    OP_BOOL,
+    OP_NONE,
+    OP_LIST,
+    OP_DICTIONARY,
+    OP_VARIABLE,
+    OP_MAKE_VARIABLE,
+    OP_CLASS,
+    OP_RETURN,
+    OP_FUNCTION,
+    OP_FUNCTION_CALL,
+    OP_GET_ATTRIBUTE,
+    OP_SET_ATTRIBUTE,
+    OP_IF,
+    OP_WHILE,
+    OP_BREAK,
+    OP_CONTINUE,
+    OP_NOT,
+    OP_BINARY_OPERATION,
+} OP_CODE;
 
 typedef struct BCODE {
-    Bcode_Type type;
+    OP_CODE type;
     char* name;
+    unsigned int line;
     union {
         char* str_value;
         double num_value;
@@ -33,7 +40,7 @@ typedef struct BCODE {
 
 	struct BCODE* left;
     struct BCODE* right;
-    Bobject* (*func)(struct BCODE*, Stack*);
+    Bobject* (*func)(struct BCODE*, bcon_State*);
     struct BCODE* next;
 } Bcode;
 

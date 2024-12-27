@@ -2,10 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../parser/bobject.h"
+#include "../parser/Includes/bobject.h"
 
-
-Bobject* print(Bobject* args, Bobject* fun, Stack* stack){
+Bobject* print(Bobject* args, Bobject* fun, bcon_State *bstate){
 	Bobject* arg = args;
 
 	while (arg != NULL){
@@ -18,4 +17,20 @@ Bobject* print(Bobject* args, Bobject* fun, Stack* stack){
 	}
 	printf("\r\n");
 	return b_None();
+}
+
+Bobject* input(Bobject* args, Bobject* fun, bcon_State *bstate){
+	Bobject* arg = args;
+	while (arg != NULL){
+		printf("%s", arg->value.str_value);
+		arg = arg->next;
+	}
+
+	char *input_data;
+	scanf("%s", input_data);
+
+	char *input_str = malloc(strlen(input_data));
+	strcpy(input_str, input_data);
+
+	return BC_STRING(input_str);
 }

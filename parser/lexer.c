@@ -1,4 +1,4 @@
-#include "lexer.h"
+#include "Includes/lexer.h"
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,7 +8,7 @@
 #include "../Include/bapi.h"
 
 Token * init_token(char* value, TokenType type, unsigned int line){
-	Token* token = (Token*)malloc(sizeof(Token));
+	Token* token = malloc(sizeof(Token));
 	token->value = value;
 	token->type = type;
 	token->line = line;
@@ -66,6 +66,9 @@ Token* keyword_id(char* value, const Lexer* lex){
     if (strcmp("fun", value) == 0)
         return init_token("", TK_FUN, lex->line);
 
+    if (strcmp("return", value) == 0)
+        return init_token("", TK_RETURN, lex->line);
+
     if (strcmp("class", value) == 0)
         return init_token("", TK_CLASS, lex->line);
 
@@ -103,7 +106,7 @@ Token* keyword_id(char* value, const Lexer* lex){
         return init_token("", TK_BREAK, lex->line);
 
     if (strcmp("continue", value) == 0)
-        return init_token("", TK_CONT, lex->line);
+        return init_token("", TK_CONTINUE, lex->line);
 
     if (strcmp("if", value) == 0)
         return init_token("", TK_IF, lex->line);
@@ -121,7 +124,7 @@ Token* lex_id(Lexer* lex) {
     char* value = malloc(2);
 
     if (value == NULL){
-        lexer_syntax_error("string memory allocation failed...", lex);
+        lexer_syntax_error("lexer string memory allocation failed...", lex);
     }
 
     int capacity = 2;
@@ -207,7 +210,7 @@ Token* lex_newline(Lexer* lex){
 	lexer_advance(lex);
 	lex->line++;
 
-    return init_token("\\n", TK_NL, lex->line);
+    return init_token(NULL, TK_NL, lex->line);
 }
 
 Token* lex_operator(Lexer* lex){
@@ -226,23 +229,23 @@ Token* lex_operator(Lexer* lex){
 void lex_special(Lexer* lex){
 	switch (lex->tok){
 		case '(':
-			return appendToken(init_token("", TK_LPAREN, lex->line), lex);
+			return appendToken(init_token(NULL, TK_LPAREN, lex->line), lex);
 		case ')':
-			return appendToken(init_token("", TK_RPAREN, lex->line), lex);
+			return appendToken(init_token(NULL, TK_RPAREN, lex->line), lex);
 		case ']':
-			return appendToken(init_token("", TK_RBRACK, lex->line), lex);
+			return appendToken(init_token(NULL, TK_RBRACK, lex->line), lex);
 		case '[':
-			return appendToken(init_token("", TK_LBRACK, lex->line), lex);
+			return appendToken(init_token(NULL, TK_LBRACK, lex->line), lex);
 		case '}':
-			return appendToken(init_token("", TK_RBRACE, lex->line), lex);
+			return appendToken(init_token(NULL, TK_RBRACE, lex->line), lex);
 		case '{':
-			return appendToken(init_token("", TK_LBRACE, lex->line), lex);
+			return appendToken(init_token(NULL, TK_LBRACE, lex->line), lex);
 		case ',':
-			return appendToken(init_token("", TK_COMMA, lex->line), lex);
+			return appendToken(init_token(NULL, TK_COMMA, lex->line), lex);
         case '.':
-            return appendToken(init_token("", TK_DOT, lex->line), lex);
+            return appendToken(init_token(NULL, TK_DOT, lex->line), lex);
         case ';':
-			return appendToken(init_token("", TK_SEMICOLON, lex->line), lex);
+			return appendToken(init_token(NULL, TK_SEMICOLON, lex->line), lex);
 		default:
             if (isspace(lex->tok) == 0){
 				lexer_syntax_error("Unexpected syntax in code", lex);
@@ -267,19 +270,27 @@ Token* lex_conditions(Lexer* lex){
     const char op = lex->tok;
 	lexer_advance(lex);
 
-	if (lex->tok != '\0' && lex->tok == '='){
+    if (lex->tok != '\0' && lex->tok == '='){
 		lexer_advance(lex);
-		char value1[3] = {op, '=', '\0'};
+		char* value1 = malloc(3);
+        value1[0] = op; value1[1] = '='; value1[2] = '\0';
+
 		return init_token(value1, TK_GREATER_EQS, lex->line);
 	}
 
-	char value2[2] = {op, '\0'};
+	char* value2 = malloc(2);
+    value2[0] = op; value2[1] = '\0';
 
-    if (op == '='){
-		return init_token(value2, TK_EQUALS, lex->line);
+    switch (op) {
+        case '=':
+            return init_token(value2, TK_EQUALS, lex->line);
+        case '!':
+            return init_token(value2, TK_NOT, lex->line);
+        default:
+            break;
     }
 
-	return init_token(value2, TK_GREATER_EQS, lex->line);
+    return init_token(value2, TK_GREATER_EQS, lex->line);
 }
 
 void lexer_process(Lexer* lex){

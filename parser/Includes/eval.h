@@ -8,15 +8,15 @@
 
 
 typedef struct EVAL_UP{
-	Bcode * tok;
-	char * file;
-	Stack * memory;
+	Bcode *tok;
+	Bcode *start;
+	char *file;
 } Eval;
 
 
-Eval * evaluator_read(Inter * exec, Stack * memory);
+Eval *evaluator_read(Inter *exec);
 
-void evaluator_start(Eval * pls);
+void evaluator_start(Eval *pls, bcon_State *bstate);
 
 
 #endif

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "bobject.h"
+#include "Includes/bobject.h"
 
 
 unsigned int hash(const char *key) {
@@ -16,7 +16,8 @@ unsigned int hash(const char *key) {
     }
 
     // make sure value is 0 <= value < TABLE_SIZE
-    value = value % TABLE_SIZE;
+    // value = value % (TABLE_SIZE);
+    value = value & (TABLE_SIZE - 1);
     return value;
 }
 
@@ -192,9 +193,18 @@ void print_stack(Stack *hashtable) {
 
 // DATATYPES
 Bobject* b_None(){
-    Bobject* None = malloc(sizeof(Bobject));
+    Bobject* None = calloc(sizeof(Bobject), 1);
     None->type = B_NONE;
     None->value.str_value = "None";
 
     return None;
 }
+
+Bobject* BC_STRING(char *data){
+    Bobject* str = calloc(sizeof(Bobject), 1);
+    str->type = B_STR;
+
+    str->value.str_value = data;
+    return str;
+}
+

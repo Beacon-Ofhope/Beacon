@@ -9,17 +9,25 @@ typedef enum
 	P_NUM = 0,
 	P_STR,
 	P_VAR,
+	P_NONE,
+	P_TRUE,
+	P_FALSE,
 	P_BIN_OP,
 	P_VAR_ASSIGN,
 	P_LIST,
 	P_FN,
 	P_FN_CALL,
+	P_RETURN,
 	P_ATTR,
+	P_SET_ATTR,
 	P_CLASS,
 	P_FOR,
 	P_WHILE,
+	P_BREAK,
+	P_CONTINUE,
 	P_IF,
 	P_ELSE,
+	P_NOT,
 	P_IF_ELSE,
 } AstType;
 
@@ -29,6 +37,9 @@ typedef struct ASTNode {
         char* str_value;
 		double num_value;
     } value;
+
+	unsigned int line;
+
     struct ASTNode* left;
     struct ASTNode* right;
 
@@ -57,5 +68,7 @@ AstNode * parser_mult(Parser * pls);
 AstNode *parser_call_function(AstNode *node, Parser *pls);
 
 AstNode *parser_get_attribute(AstNode *node, Parser *pls);
+
+AstNode *parser_set_attribute(AstNode *node, Parser *pls);
 
 #endif

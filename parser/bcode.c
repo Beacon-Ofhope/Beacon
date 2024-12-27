@@ -1,10 +1,10 @@
-#include "bcode.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "bytec.h"
-#include "parser.h"
-#include "../Include/helpers.h"
+
+#include "Includes/bcode.h"
+#include "Includes/bytecode.h"
+#include "Includes/parser.h"
 
 
 Inter* inter_read(const Parser* pls){
@@ -28,8 +28,7 @@ Inter* inter_read_within(AstNode* start, char* file){
 }
 
 Bcode* mk_safe_bcode() {
-    Bcode *bin = malloc(sizeof(Bcode));
-    bin->next = NULL;
+    Bcode *bin = calloc(sizeof(Bcode), 1);
     return bin;
 }
 
@@ -65,20 +64,21 @@ void append_block_bcode(Bcode **start, Bcode **recent, Bcode *new_data){
 
 Bcode* i_call_function(AstNode* tok, Inter * pls){
     Bcode* bin = mk_safe_bcode();
-    bin->type = I_CALL_FN;
+    bin->type = OP_FUNCTION_CALL;
     bin->func = bt_call_function;
-    bin->value.str_value = copy_string_safely(tok->left->value.str_value);
+    bin->left = i_eval_ast(tok->left, pls);
+    bin->line = tok->line;
 
     Inter* b_interpreter = inter_read_within(tok->right, pls->file);
     inter_interpret(b_interpreter);
 
-    bin->left = b_interpreter->start;
+    bin->right = b_interpreter->start;
     return bin;
 }
 
 Bcode* i_mk_list(AstNode* tok, Inter* pls){
     Bcode* bin = mk_safe_bcode();
-    bin->type = I_LIST;
+    bin->type = OP_LIST;
     bin->func = bt_list;
 
     Inter *b_interpreter = inter_read_within(tok->left, pls->file);
@@ -90,45 +90,102 @@ Bcode* i_mk_list(AstNode* tok, Inter* pls){
 
 Bcode* i_get_attribute(AstNode* tok, Inter * pls){
     Bcode* bin = mk_safe_bcode();
-    bin->type = I_ATTR;
+    bin->type = OP_GET_ATTRIBUTE;
     bin->func = bt_get_attribute;
-    bin->value.str_value = copy_string_safely(tok->value.str_value);
+    bin->value.str_value = tok->value.str_value;
     bin->left = i_eval_ast(tok->left, pls);
     return bin;
 }
 
+Bcode* i_set_attribute(AstNode* tok, Inter * pls){
+    Bcode* bin = mk_safe_bcode();
+    bin->type = OP_SET_ATTRIBUTE;
+    bin->func = bt_set_attribute;
+    bin->value.str_value = tok->value.str_value;
+    bin->left = i_eval_ast(tok->left, pls);
+    bin->right = i_eval_ast(tok->right, pls);
+    
+    return bin;
+}
+
+Bcode* i_break(){
+    Bcode *bin = mk_safe_bcode();
+    bin->type = OP_BREAK;
+    bin->func = bt_break;
+
+    return bin;
+}
+
+Bcode* i_continue(){
+    Bcode *bin = mk_safe_bcode();
+    bin->type = OP_CONTINUE;
+    bin->func = bt_continue;
+
+    return bin;
+}
+
+Bcode* i_return(AstNode *tok, Inter *pls){
+    Bcode *bin = mk_safe_bcode();
+    bin->type = OP_RETURN;
+    bin->left = i_eval_ast(tok->left, pls);
+    bin->func = bt_return;
+
+    return bin;
+}
+
+Bcode* i_not(AstNode *tok, Inter *pls){
+    Bcode *bin = mk_safe_bcode();
+    bin->left = i_eval_ast(tok->left, pls);
+    bin->func = bt_not;
+    bin->type = OP_NOT;
+
+    return bin;
+}
+
 Bcode* i_eval_ast(AstNode* value, Inter * pls){
-    if (value->type == P_FN_CALL) {
-        return i_call_function(value, pls);
-
-    } else if (value->type == P_LIST){
-        return i_mk_list(value, pls);
-
-    } else if (value->type == P_ATTR){
-        return i_get_attribute(value, pls);
-
+    switch (value->type){
+        case P_FN_CALL:
+            return i_call_function(value, pls);
+        case P_LIST:
+            return i_mk_list(value, pls);
+        case P_ATTR:
+            return i_get_attribute(value, pls);
+        case P_SET_ATTR:
+            return i_set_attribute(value, pls);
+        case P_BREAK:
+            return i_break();
+        case P_CONTINUE:
+            return i_continue();
+        case P_RETURN:
+            return i_return(value, pls);
+        case P_NOT:
+            return i_not(value, pls);
+        default:
+            break;
     }
 
     Bcode* bin = mk_safe_bcode();
 
     if (value->type == P_NUM) {
         bin->value.num_value = value->value.num_value;
-        bin->type = I_NUM;
+        bin->type = OP_NUMBER;
         bin->func = bt_num;
 
     } else if (value->type == P_STR) {
-        bin->value.str_value = copy_string_safely(value->value.str_value);
-        bin->type = I_STR;
+        bin->value.str_value = value->value.str_value;
+        bin->type = OP_STRING;
         bin->func = bt_str;
 
     } else if (value->type == P_VAR) {
-        bin->value.str_value = copy_string_safely(value->value.str_value);
-        bin->type = I_VAR;
+        bin->value.str_value = value->value.str_value;
+        bin->type = OP_VARIABLE;
+        bin->line = value->line;
         bin->func = bt_get_variable;
 
 	} else if (value->type == P_BIN_OP) {
 		bin->left = i_eval_ast(value->left, pls);
 		bin->right = i_eval_ast(value->right, pls);
+        bin->type = OP_BINARY_OPERATION;
 
 		if (strcmp(value->value.str_value, "+") == 0)
 			bin->func = bt_add_num;
@@ -139,26 +196,27 @@ Bcode* i_eval_ast(AstNode* value, Inter * pls){
 		else if (strcmp(value->value.str_value, "*") == 0)
 			bin->func = bt_mult_num;
        else if (strcmp(value->value.str_value, "<") == 0)
-           bin->func = bt_mult_num;
+           bin->func = bt_less_than_num;
        else if (strcmp(value->value.str_value, ">") == 0)
-           bin->func = bt_mult_num;
-       else if (strcmp(value->value.str_value, "!") == 0)
-           bin->func = bt_mult_num;
+           bin->func = bt_greater_than_num;
        else if (strcmp(value->value.str_value, "<=") == 0)
-           bin->func = bt_mult_num;
+           bin->func = bt_less_equals_num;
        else if (strcmp(value->value.str_value, ">=") == 0)
-           bin->func = bt_mult_num;
+           bin->func = bt_greater_equals_num;
+       else if (strcmp(value->value.str_value, "==") == 0)
+           bin->func = bt_equals;
        else if (strcmp(value->value.str_value, "!=") == 0)
-           bin->func = bt_mult_num;
+           bin->func = bt_not_equals;
 	}
     return bin;
 }
 
 Bcode* i_make_variable(Inter* pls) {
     Bcode* bin = mk_safe_bcode();
-    bin->type = I_VAR_MAKE;
+    bin->type = OP_MAKE_VARIABLE;
     bin->func = bt_make_variable;
-    bin->value.str_value = copy_string_safely(pls->tok->value.str_value);
+
+    bin->value.str_value = pls->tok->value.str_value;
     bin->left = i_eval_ast(pls->tok->left, pls);
 
     return bin;
@@ -199,18 +257,17 @@ Bcode *i_make_if_stat(Inter* pls){
 
 Bcode *i_make_if(Inter *pls) {
     Bcode *bin = mk_safe_bcode();
-    bin->type = I_IF;
-    bin->func = bt_if;
-
     bin->left = i_make_if_stat(pls);
-    bin->type = I_IF;
+
+    bin->type = OP_IF;
+    bin->func = bt_if;
     
     return bin;
 }
 
 Bcode *i_make_while(Inter *pls) {
     Bcode *whl = mk_safe_bcode();
-    whl->type = I_WHILE;
+    whl->type = OP_WHILE;
     whl->func = bt_while;
     whl->left = i_eval_ast(pls->tok->left, pls);
     whl->right = i_code_to_bytecode(pls, pls->tok);
@@ -220,8 +277,9 @@ Bcode *i_make_while(Inter *pls) {
 
 Bcode *i_make_function(Inter *pls) {
     Bcode *fn = mk_safe_bcode();
-    fn->type = I_FN;
-    fn->value.str_value = copy_string_safely(pls->tok->value.str_value);
+    fn->type = OP_FUNCTION;
+
+    fn->value.str_value = pls->tok->value.str_value;
     fn->func = bt_mk_fun;
 
     fn->left = i_mk_list(pls->tok, pls);
@@ -231,8 +289,8 @@ Bcode *i_make_function(Inter *pls) {
 
 Bcode *i_make_class(Inter *pls) {
     Bcode *fn = mk_safe_bcode();
-    fn->type = I_CLASS;
-    fn->value.str_value = copy_string_safely(pls->tok->value.str_value);
+    fn->type = OP_CLASS;
+    fn->value.str_value = pls->tok->value.str_value;
     fn->func = bt_mk_class;
 
     fn->left = i_mk_list(pls->tok, pls);
