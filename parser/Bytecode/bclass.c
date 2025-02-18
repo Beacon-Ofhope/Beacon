@@ -5,114 +5,142 @@
 #include <string.h>
 #include <bits/types/siginfo_t.h>
 
+
 #include "../Includes/bcode.h"
 #include "../Includes/bobject.h"
 #include "../Includes/bytecode.h"
+#include "../../Modules/Includes/_imports.h"
 
+// INTERFACE IMPLEMENTATION CODE
+Bobject *bt_face(Bcode *code, bcon_State *bstate){
+    opdict *dt = code->value.dict;
+    Stack* attrs = create_stack((int)(code->line));
+
+    char **keys = dt->keys;
+    Bcode *value = dt->values;
+
+    int count = code->line;
+    Bobject *val;
+
+    for (int i = 0; i < count; i++) {
+        val = value->func(value, bstate);
+
+        if (bstate->islocked != BLOCK_ISRUNNING)
+            return bstate->none;
+
+        add_to_stack_i(attrs, keys[i], val);
+        value = value->next;
+    }
+
+    binterface *bin = malloc(sizeof(binterface));
+    bin->count = count;
+    bin->attrs = attrs;
+
+    Bobject *module = mk_safe_Bobject();
+    module->type = BINTERFACE;
+    module->value.bface = bin;
+
+    return module;
+}
+
+// CLASS IMPLEMENTATION CODE
+Stack *mk_type(bcon_State *bstate, char *name){
+    Stack *props = create_stack(4);
+    // add_to_stack(props, "__name__", bt_mk_string(name));
+
+    return props;
+}
 
 Bobject *bt_mk_class(Bcode *code, bcon_State *bstate){
-    Bobject *cls = mk_safe_Bobject();
-    char *name = code->value.str_value;
-    cls->value.str_value = name;
-    cls->type = B_TYPE;
+    opmkclass *cl = code->value.pmkclass;
 
-    // parameter names
-    Param *params = NULL;
-    Param *recent = NULL;
+    btype *bty = malloc(sizeof(btype));
+    bty->bstate = bstate;
+    bty->func = bt_exec_type;
+    bty->code = cl->code_block;
+    bty->attrs = mk_type(bstate, cl->name);
+    bty->name = cl->name;
 
-    // extends
-    Bcode *exts = code->left->left;
+    if (bstate->islocked != BLOCK_ISRUNNING)
+        return bstate->none;
 
-    while (exts != NULL){
-        append_param(&params, &recent, mk_param(exts));
+    Bobject *cls = mk_Bobject(bstate);
+    cls->value.btype = bty;
+    cls->type = BTYPE;
 
-        exts = exts->next;
-    }
-
-    cls->params = params;
-    cls->code = code;
-    cls->func = bt_exec_type;
-
-    cls->attrs = mk_type(bstate, code, name);
-
-    add_to_stack(bstate->memory, name, cls);
-    return b_None();
+    add_to_stack(bstate->callStack[bstate->stackPos], cl->name, cls);
+    return bstate->none;
 }
 
-Stack *mk_type(bcon_State *bstate, Bcode *code, char *name){
-    Stack *attrs = create_stack();
-    add_to_stack(attrs, "_name", bt_mk_string(name));
-    add_to_stack(attrs, "_file", bt_mk_string((get_from_stack(bstate->memory, "_file"))->value.str_value));
+Bobject *mk_object(Bobject *obj, btype *fun) {
+    bcon_State *bstate = fun->bstate;
+    Stack *attributes = create_stack(0);
 
-    save_type_block(code, bstate, attrs);
-
-    return attrs;
-}
-
-// makes the type functions from bytecode
-void save_type_block(Bcode *code, bcon_State *bstate, Stack *attr){
-    Bcode *prop = code->right;
-    int _type;
-
-    block_evaluator_start(code->right, bstate);
+    Stack *original = bstate->memory;
+    Stack *dup = copy_stack(original);
+    
+    bstate->memory = dup;
+    block_evaluator_start(fun->code, bstate);
 
     // saving to object attributes
-    while (prop != NULL){
-        _type = prop->type;
+    Bobject* recent = NULL;
+    Bobject* constructor = NULL;
 
-        if (_type == OP_FUNCTION || _type == OP_MAKE_VARIABLE)
-            add_to_stack(attr, prop->value.str_value, get_from_stack(bstate->memory, prop->value.str_value));
+    Bcode *code = fun->code;
 
-        prop = prop->next;
-    }
-}
+    while (code != NULL) {
+        switch (code->type) {
+            case OP_FUNCTION:
+                char *name = code->value.pmkfun->name;
+                recent = get_from_stack(bstate->memory, name);
 
-// makes the object functions from bytecodes
-// appends the self to the class function
-void save_object_block(Bobject *cls, Bcode *code, bcon_State *bstate, Stack *attr){
-    Bcode *prop = code->right;
-    int _type;
+                if (recent->type ==  BFUNCTION) {
+                    add_to_stack(attributes, name, recent);
+                    recent->value.bfun->this = obj;
 
-    block_evaluator_start(code->right, bstate);
+                    if (strcmp(name, "constructor") == 0)
+                        constructor = recent;                 
+                }
+                break;
 
-    // saving to object attributes
-    while (prop != NULL){
-        _type = prop->type;
+            case OP_MAKE_VARIABLE:
+                char *var = code->value.mkvar->key;
+                add_to_stack(attributes, var, get_from_stack(bstate->memory, var));
+                break;
 
-        if (_type == OP_FUNCTION || _type == OP_MAKE_VARIABLE)
-            add_to_stack(attr, prop->value.str_value, get_from_stack(bstate->memory, prop->value.str_value));
-
-        if (_type == OP_FUNCTION){
-            get_from_stack(attr, prop->value.str_value)->this = cls;
+            default:
+                break;
         }
-
-        prop = prop->next;
+        code = code->next;
     }
+
+    obj->value.bclass->attrs = attributes;
+    bstate->memory = original;
+
+    return constructor;
 }
 
-Stack *mk_object(Bobject *cls, bcon_State *bstate, Bcode *code, char *name){
-    Stack *attrs = create_stack();
-    add_to_stack(attrs, "_name", bt_mk_string(name));
-    add_to_stack(attrs, "_file", bt_mk_string((get_from_stack(bstate->memory, "_file"))->value.str_value));
+Bobject *bt_exec_type(bargs *args, btype *fun, bcon_State *bstate){
+    bclass* cls = malloc(sizeof(bclass));
+    cls->name = fun->name;
 
-    save_object_block(cls, code, bstate, attrs);
-    return attrs;
-}
+    Bobject *obj = mk_Bobject(bstate);
+    obj->value.bclass = cls;
+    obj->type = BOBJECT;
 
-Bobject *bt_exec_type(Bobject *args, Bobject *fun, bcon_State *bstate){
-    Bobject *cls = mk_safe_Bobject();
-    char *name = fun->value.str_value;
-    cls->value.str_value = name;
-    cls->type = B_OBJECT;
+    /*
+        EXTENDED CODE
+        GOES HERE
+    */
+   
+    Bobject *constructor = mk_object(obj, fun);
 
-    // parameter names
-    Param *params = NULL;
-    Param *recent = NULL;
+    if (constructor != NULL){
+        bfunction *bf = constructor->value.bfun;
+        bf->func(args, bf, bstate);
+    }
 
-    cls->params = params;
-    cls->attrs = mk_object(cls, bstate, fun->code, name);
-
-    return cls;
+    return obj;
 }
 
 

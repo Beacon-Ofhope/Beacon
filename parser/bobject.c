@@ -2,209 +2,342 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+
 #include "Includes/bobject.h"
+#include "../Modules/Includes/_modules.h"
 
 
-unsigned int hash(const char *key) {
-    unsigned long int value = 0;
-    unsigned int i = 0;
-    unsigned int key_len = strlen(key);
-
-    // do several rounds of multiplication
-    for (; i < key_len; ++i) {
-        value = value * 37 + key[i];
-    }
-
-    // make sure value is 0 <= value < TABLE_SIZE
-    // value = value % (TABLE_SIZE);
-    value = value & (TABLE_SIZE - 1);
-    return value;
+Bobject* mk_Bobject(bcon_State* bstate){
+    Bobject* obj = malloc(sizeof(Bobject));
+    obj->refs = 0;
+    return obj;
 }
 
-entry_t *pair_stack(const char *key, Bobject *value) {
-    // allocate the entry
-    entry_t *entry = malloc(sizeof(entry_t) * 1);
-    entry->key = malloc(strlen(key) + 1);
-    entry->value = (Bobject*)malloc(sizeof(Bobject));
+Bobject* mk_error(char* type, char* message, char* file, unsigned int line, int err){
+    Stack *attrs = create_stack(5);
 
-    // copy the key and value in place
-    strcpy(entry->key, key);
+    add_to_stack(attrs, "line", mk_mod_number(line));
+    add_to_stack(attrs, "file", mk_mod_string(strdup(file)));
+    add_to_stack(attrs, "type", mk_mod_string(type));
+    add_to_stack(attrs, "message", mk_mod_string(message));
+    add_to_stack(attrs, "errno", mk_mod_number(err));
+
+    binterface *in_face = malloc(sizeof(binterface));
+    in_face->attrs = attrs;
+    in_face->count = 4;
+
+    Bobject *bin = malloc(sizeof(Bobject));
+    bin->type = BINTERFACE;
+    bin->value.bface = in_face;
+    bin->refs = 0;
+
+    return bin;
+}
+
+// Hash function (e.g., FNV-1a)
+size_t hash(const char* key) {
+    size_t hash = 14695981039346656037UL; // 64-bit FNV-1a offset basis
+    while (*key) {
+        hash ^= *(key++);
+        hash *= 1099511628211UL; // 64-bit FNV-1a prime
+    }
+    return hash;
+}
+
+// Create a new hash table
+Stack* create_stack(int size) {
+    Stack* ht = malloc(sizeof(Stack));
+    ht->capacity = 16; // Initial capacity
+    ht->resize = size;
+    ht->size = 0;
+
+    if (size == 0)
+        ht->table = (Node **)calloc(ht->capacity, sizeof(Node *));
+    else {
+        if (size > 0)
+            ht->table = (Node **)calloc(size, sizeof(Node *));
+        else {
+            ht->table = (Node **)calloc((-size), sizeof(Node *));
+            ht->resize = 0;
+            ht->capacity = -size; 
+        }
+    }
+
+    return ht;
+}
+
+Stack* create_callStack(int size) {
+    Stack* ht = malloc(sizeof(Stack));
+    ht->table = (Node **)calloc(size, sizeof(Node *));
+    ht->capacity = size;
+    ht->resize = 0;
+    ht->size = 0;
+
+    return ht;
+}
+
+// Find the entry in the table
+Node* find_entry(Stack* ht, const char* key) {
+    if (ht->resize)
+        return get_from_stack_i(ht, key);
+
+    size_t index = hash(key) % ht->capacity;    
+    Node* current = ht->table[index];
+    
+    // incase collisions occurred
+    while (current != NULL && strcmp(current->key, key) != 0)
+        current = current->next;
+    
+    return current;
+}
+
+void free_object(Bobject* data){
+    switch (data->type) {
+        case BNUMBER:
+            free(data);
+            break;
+        default:
+            break;
+    }
+}
+
+void add_to_stack_i(Stack *ht, const char *key, Bobject *value) {
+    size_t index = hash(key) % ht->resize;
+    size_t originalIndex = index;
+
+    // Linear probing to handle collisions
+    while (ht->table[index] != NULL && strcmp(ht->table[index]->key, key) != 0) {
+        index = (index + 1) % ht->resize;
+
+        if (index == originalIndex) // Table is full
+            return; // Insertion failed
+    }
+
+    Node* entry = malloc(sizeof(Node));
+    entry->key = strdup(key);
     entry->value = value;
 
-    // next starts out null but may be set later on
-    entry->next = NULL;
-
-    return entry;
+    ht->table[index] = entry;
 }
 
-Stack* create_stack(void) {
-    // allocate table
-    Stack* hashtable = malloc(sizeof(Stack));
-
-    // allocate table entries
-    hashtable->entries = malloc(sizeof(entry_t*) * TABLE_SIZE);
-
-    // set each to null (needed for proper operation)
-    int i = 0;
-    for (; i < TABLE_SIZE; ++i) {
-        hashtable->entries[i] = NULL;
-    }
-
-    return hashtable;
-}
-
-void add_to_stack(Stack *hashtable, const char *key, Bobject *value) {
-    unsigned int slot = hash(key);
-
-    // try to look up an entry set
-    entry_t *entry = hashtable->entries[slot];
-
-    // no entry means slot empty, insert immediately
-    if (entry == NULL) {
-        hashtable->entries[slot] = pair_stack(key, value);
+void add_to_stack(Stack* ht, const char* key, Bobject* value) {
+    if (ht->resize){
+        add_to_stack_i(ht, key, value);
         return;
     }
 
-    entry_t *prev;
+    size_t index = hash(key) % ht->capacity;
+    Node* current = ht->table[index];
 
-    // walk through each entry until either the end is
-    // reached or a matching key is found
-    while (entry != NULL) {
-        // check key
-        if (strcmp(entry->key, key) == 0) {
-            // match found, replace value
-            // free(entry->value);
-            entry->value = value;
-            // entry->value = (Dobject*)malloc(sizeof(Dobject));
-            return;
+    // Optimize for common case: no collision
+    if (current == NULL) {
+        Node* new_node = malloc(sizeof(Node));
+
+        new_node->key = strdup(key);
+        new_node->value = value;
+
+        ++(value->refs);
+
+        new_node->next = NULL;
+        ht->table[index] = new_node;
+        ht->size++;
+
+        // Check if we need to resize (grow)
+        if ((double)ht->size / ht->capacity >= 0.75) { // Load factor
+            hash_table_resize(ht, ht->capacity * 2);
         }
-
-        // walk to next
-        prev = entry;
-        entry = prev->next;
+        return;
     }
 
-    // end of chain reached without a match, add new
-    prev->next = pair_stack(key, value);
+    // Handle collision
+    while (current->next != NULL && strcmp(current->key, key) != 0) {
+        current = current->next;
+    }
+
+    if (strcmp(current->key, key) == 0) { // Update existing entry
+        if (current->value->type == BNUMBER){
+            --(current->value->refs);
+
+            if (current->value->refs == 0)
+                free_object(current->value);
+        }
+
+        current->value = value;
+        ++(value->refs);
+
+    } else { // Add new entry
+        Node* new_node = malloc(sizeof(Node));
+        new_node->key = strdup(key);
+        new_node->value = value;
+
+        ++(value->refs);
+
+        new_node->next = NULL;
+        current->next = new_node;
+        ht->size++;
+
+        // Check if we need to resize (grow)
+        if ((double)ht->size / ht->capacity >= 0.75) { // Load factor
+            hash_table_resize(ht, ht->capacity * 2);
+        }
+    }
 }
 
-Bobject* get_from_stack(Stack *hashtable, const char *key) {
-    unsigned int slot = hash(key);
+// retrieve from immutable stack
+Node* get_from_stack_i(Stack *ht, const char *key) {
+    size_t index = hash(key) % ht->resize;
+    size_t originalIndex = index;
 
-    // try to find a valid slot
-    entry_t *entry = hashtable->entries[slot];
+    while (ht->table[index] != NULL && index < ht->resize) {
+        if (strcmp(ht->table[index]->key, key) == 0)
+            return ht->table[index];
 
-    // no slot means no entry
-    if (entry == NULL) {
-        return NULL;
+        index = (index + 1) % ht->resize;
+     
+        // not found
+        if (index == originalIndex)
+            return NULL;
     }
 
-    // walk through each entry in the slot, which could just be a single thing
-    while (entry != NULL) {
-        // return value if found
-        if (strcmp(entry->key, key) == 0) {
-            return entry->value;
-        }
-
-        // proceed to next key if available
-        entry = entry->next;
-    }
-
-    // reaching here means there were >= 1 entries but no key match
     return NULL;
 }
 
-void delete_from_stack(Stack *hashtable, const char *key) {
-    unsigned int bucket = hash(key);
+// Get a value from the hash table
+Bobject *get_from_stack(Stack* ht, const char* key) {
+    Node* entry = find_entry(ht, key);
+    return entry != NULL ? entry->value : NULL;
+}
 
-    // try to find a valid bucket
-    entry_t *entry = hashtable->entries[bucket];
+// Check if a key exists in the hash table
+bool hash_table_exists(Stack* ht, const char* key) {
+    return find_entry(ht, key) != NULL;
+}
 
-    // no bucket means no entry
-    if (entry == NULL) {
+// Resize the hash table
+void hash_table_resize(Stack* ht, size_t new_capacity) {
+    Node** old_table = ht->table;
+    size_t old_capacity = ht->capacity;
+
+    ht->capacity = new_capacity;
+    ht->table = (Node**)calloc(ht->capacity, sizeof(Node*));
+    if (ht->table == NULL) {
+        ht->table = old_table;
         return;
     }
 
-    entry_t *prev;
-    int idx = 0;
-
-    // walk through each entry until either the end is reached or a matching key is found
-    while (entry != NULL) {
-        // check key
-        if (strcmp(entry->key, key) == 0) {
-            // first item and no next entry
-            if (entry->next == NULL && idx == 0) {
-                hashtable->entries[bucket] = NULL;
-            }
-
-            // first item with a next entry
-            if (entry->next != NULL && idx == 0) {
-                hashtable->entries[bucket] = entry->next;
-            }
-
-            // last item
-            if (entry->next == NULL && idx != 0) {
-                prev->next = NULL;
-            }
-
-            // middle item
-            if (entry->next != NULL && idx != 0) {
-                prev->next = entry->next;
-            }
-
-            // free the deleted entry
-            free(entry->key);
-            free(entry->value);
-            free(entry);
-
-            return;
+    ht->size = 0; // Reset size during rehashing
+    for (size_t i = 0; i < old_capacity; i++) {
+        Node* current = old_table[i];
+        while (current != NULL) {
+            Node* next = current->next;
+            add_to_stack(ht, current->key, current->value); // Rehash entries
+            free(current->key);
+            free(current);
+            current = next;
         }
+    }
 
-        // walk to next
-        prev = entry;
-        entry = prev->next;
+    free(old_table);
 
-        ++idx;
+    // Check if we need to shrink
+    if ((double)ht->size / ht->capacity <= 0.25 && ht->capacity > 64) { // Shrink factor
+        hash_table_resize(ht, ht->capacity / 2);
     }
 }
 
-void print_stack(Stack *hashtable) {
-    printf("{ ");
+// Copy the hash table (for new scope)
+Stack* copy_stack(Stack* ht) {
+    Stack* new_ht = create_stack(ht->capacity);
 
-    for (int i = 0; i < TABLE_SIZE; ++i) {
-        entry_t *entry = hashtable->entries[i];
-
-        if (entry == NULL) {
-            continue;
+    for (size_t i = 0; i < ht->capacity; i++) {
+        Node* current = ht->table[i];
+        while (current != NULL) {
+            add_to_stack(new_ht, current->key, current->value);
+            current = current->next;
         }
+    }
 
-        for(;;) {
-            printf("%s: '%d', ", entry->key, entry->value->type);
+    return new_ht;
+}
 
-            if (entry->next == NULL) {
+// Delete the hash table
+void delete_stack(Stack* ht) {
+    hash_table_free(ht);
+}
+
+void heap_free_object(Bobject *ob){
+    --(ob->refs);
+
+    if (ob->refs == 0){
+        switch (ob->type){
+            case BNUMBER:
+                free(ob);
                 break;
-            }
 
-            entry = entry->next;
+            case BSTRING:
+                free(ob->value.str_value);
+                free(ob);
+                break;
+            
+            default:
+                break;
         }
     }
-    printf("}\n");
 }
 
-// DATATYPES
-Bobject* b_None(){
-    Bobject* None = calloc(sizeof(Bobject), 1);
-    None->type = B_NONE;
-    None->value.str_value = "None";
+// Free the hash table
+void hash_table_free(Stack* ht) {
+    if (ht->resize){
+        for (size_t i = 0; i < ht->resize; i++) {
+            Node* current = ht->table[i];
 
-    return None;
+            heap_free_object(current->value);
+            free(current->key);
+            free(current);
+        }
+    } else {
+        for (size_t i = 0; i < ht->capacity; i++) {
+            Node* current = ht->table[i];
+            while (current != NULL) {
+                Node* next = current->next;
+
+                heap_free_object(current->value);
+                free(current->key);
+                free(current);
+
+                current = next;
+            }
+        }
+    }
+    free(ht->table);
+    free(ht);
 }
 
-Bobject* BC_STRING(char *data){
-    Bobject* str = calloc(sizeof(Bobject), 1);
-    str->type = B_STR;
+void print_stack(Stack* ht) {
+    if (ht->resize){
+        printf("[ ");
+        for (size_t i = 0; i < ht->resize; i++) {
+            Node* current = ht->table[i];
 
-    str->value.str_value = data;
-    return str;
+            if (current != NULL)
+                printf("%s, ", current->key);
+        }
+        printf(" ]\n");
+    } else {
+        for (size_t i = 0; i < ht->capacity; i++) {
+            Node* current = ht->table[i];
+
+            if (current != NULL){
+                printf("  [%zu]: ", i);
+                while (current != NULL) {
+                    printf("{%s: %p} -> ", current->key, current->value);
+                    current = current->next;
+                }
+                printf("\n");
+            }
+        }
+    }
 }
+
 

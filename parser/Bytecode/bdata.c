@@ -9,169 +9,236 @@
 #include "../Includes/bobject.h"
 #include "../Includes/bytecode.h"
 
+
 Bobject *bt_str(Bcode *code, bcon_State *bstate){
-    Bobject* str_value = mk_safe_Bobject();
-    str_value->value.str_value = code->value.str_value;
-    str_value->type = B_STR;
-    return str_value;
+    Bobject* bin = mk_Bobject(bstate);
+    bin->value.str_value = strdup(code->value.name);
+    bin->type = BSTRING;
+
+    return bin;
 }
 
-Bobject *bt_list(Bcode *code, bcon_State *bstate){
-    Bobject *start_data = NULL;
-    Bobject *recent_data = NULL;
+Bobject *bt_none(Bcode *code, bcon_State *bstate){
+    Bobject *none = mk_Bobject(bstate);
+    none->refs = 100000;
+    none->type = BNONE;
 
-    Bcode *raw_data = code->left;
-    double len = 0;
-
-    while (raw_data != NULL){
-        append_fun_args_data(&start_data, &recent_data, raw_data->func(raw_data, bstate));
-        raw_data = raw_data->next;
-        len++;
-    }
-
-    Bobject* list = mk_safe_Bobject();
-    list->type = B_LIST;
-    list->left = start_data;
-    list->value.str_value = "list";
-
-    return list;
-}
-
-Bobject *bt_mk_string(char *value){
-    Bobject *str_value = mk_safe_Bobject();
-    str_value->value.str_value = value;
-    str_value->type = B_STR;
-    return str_value;
+    return none;
 }
 
 Bobject *bt_num(Bcode *code, bcon_State *bstate){
-    Bobject* num_value = mk_safe_Bobject();
+    Bobject* number = mk_Bobject(bstate);
+	number->value.num_value = code->value.number;
+	number->type = BNUMBER;
+    number->refs = 0;
 
-	num_value->value.num_value = code->value.num_value;
-	num_value->type = B_NUM;
-	return num_value;
-}
-
-Bobject *bt_add_num(Bcode *code, bcon_State *bstate){
-    Bobject* number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value +
-								code->right->func(code->right, bstate)->value.num_value);
-
-    number->type = B_NUM;
 	return number;
 }
 
+Bobject *bt_add_num(Bcode *code, bcon_State *bstate){
+    opbinop *op = code->value.binop;
+    Bobject *a = op->left->func(op->left, bstate);
+
+    if (bstate->islocked == BLOCK_ERRORED)
+        return bstate->none;
+
+    Bobject *b = op->right->func(op->right, bstate);
+
+    if (bstate->islocked == BLOCK_ERRORED)
+        return bstate->none;
+
+    double ans = a->value.num_value + b->value.num_value;
+    return num_malloc(a, b, ans);
+}
+
 Bobject *bt_minus_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value -
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = a->value.num_value - b->value.num_value;
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_div_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value /
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = a->value.num_value / b->value.num_value;
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_mult_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value *
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = a->value.num_value * b->value.num_value;
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_mod_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = fmod(code->left->func(code->left, bstate)->value.num_value,
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = fmod(a->value.num_value, b->value.num_value);
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_less_than_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value <
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = a->value.num_value < b->value.num_value;
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_greater_than_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value >
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = a->value.num_value > b->value.num_value;
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_less_equals_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value <=
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = a->value.num_value <= b->value.num_value;
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_greater_equals_num(Bcode *code, bcon_State *bstate){
-    Bobject *number = mk_safe_Bobject();
-    number->value.num_value = (code->left->func(code->left, bstate)->value.num_value >=
-                               code->right->func(code->right, bstate)->value.num_value);
-    number->type = B_NUM;
-    return number;
+    opbinop *op = code->value.binop;
+
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
+
+    double ans = a->value.num_value >= b->value.num_value;
+    return num_malloc(a, b, ans);
 }
 
 Bobject *bt_not(Bcode *code, bcon_State *bstate){
-    Bobject *opt = mk_safe_Bobject();
-    opt->value.num_value = !(code->left->func(code->left, bstate)->value.num_value);
-    opt->type = B_NUM;
+    Bobject *opt = mk_Bobject(bstate);
+    opt->value.num_value = !(code->func(code, bstate)->value.num_value);
+    opt->type = BNUMBER;
     return opt;
 }
 
 Bobject *bt_equals(Bcode *code, bcon_State *bstate){
-    Bobject* left = code->left->func(code->left, bstate);
+    opbinop *op = code->value.binop;
 
-    Bobject* number = mk_safe_Bobject();
-    number->type = B_NUM;
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
 
-    switch (left->type){
-        case B_NUM:
-            number->value.num_value = (left->value.num_value == (code->right->func(code->right, bstate)->value.num_value));
+    int ans = 0;
+
+    if (a->type != b->type)
+        return data_malloc(a, b, ans);
+
+    switch (a->type){
+        case BNUMBER:
+            ans = (a->value.num_value == b->value.num_value);
             break;
-        case B_STR:
-            if (strcmp(left->value.str_value, (code->right->func(code->right, bstate)->value.str_value)) == 0)
-                number->value.num_value = 1;
-            else
-                number->value.num_value = 0;
+        case BSTRING:
+            if (strcmp(a->value.str_value, b->value.str_value) == 0)
+                ans = 1;
             break;
         default:
+            if (memcmp(a, b, sizeof(a)) == 0)
+                ans = 1;
             break;
     }
-    return number;
+
+    return data_malloc(a, b, ans);
 }
 
 Bobject *bt_not_equals(Bcode *code, bcon_State *bstate){
-    Bobject* left = code->left->func(code->left, bstate);
+    opbinop *op = code->value.binop;
 
-    Bobject* number = mk_safe_Bobject();
-    number->type = B_NUM;
+    Bobject *a = op->left->func(op->left, bstate);
+    Bobject *b = op->right->func(op->right, bstate);
 
-    switch (left->type){
-        case B_NUM:
-            number->value.num_value = (left->value.num_value != (code->right->func(code->right, bstate)->value.num_value));
+    int ans = 0;
+
+    if (a->type != b->type)
+        return data_malloc(a, b, 1);
+
+    switch (a->type){
+        case BNUMBER:
+            ans = (a->value.num_value != b->value.num_value);
             break;
-        case B_STR:
-            if (strcmp(left->value.str_value, (code->right->func(code->right, bstate)->value.str_value)) == 0)
-                number->value.num_value = 0;
-            else
-                number->value.num_value = 1;
+        case BSTRING:
+            if (strcmp(a->value.str_value, b->value.str_value))
+                ans = 1;
             break;
         default:
+            if (memcmp(a, b, sizeof(a)))
+                ans = 1;
             break;
     }
-    return number;
+
+    return data_malloc(a, b, ans);
 }
+
+Bobject *num_malloc(Bobject *a, Bobject *b, double ans){
+    if (a->refs == 0){
+        a->value.num_value = ans;
+
+        if (b->refs == 0){
+            free_object(b);
+            return a;
+        }
+    }
+
+    if (b->refs == 0){
+        b->value.num_value = ans;
+        return b;
+    }
+
+    Bobject *result = malloc(sizeof(Bobject));
+    result->value.num_value = ans;
+    result->type = BNUMBER;
+    result->refs = 0;
+
+    return result;
+}
+
+Bobject *data_malloc(Bobject *a, Bobject *b, int ans){
+    if (a->refs == 0) {
+        a->value.num_value = ans;
+        a->type = BNUMBER;
+
+        if (b->refs == 0){
+            free_object(b);
+            return a;
+        }
+    }
+
+    if (b->refs == 0){
+        b->value.num_value = ans;
+        b->type = BNUMBER;
+        return b;
+    }
+
+    Bobject *result = malloc(sizeof(Bobject));
+    result->value.num_value = ans;
+    result->type = BNUMBER;
+    result->refs = 0;
+
+    return result;
+}
+

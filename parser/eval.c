@@ -15,8 +15,10 @@ Eval * evaluator_read(Inter *exec){
 }
 
 void evaluator_start(Eval *run, bcon_State *bstate){
-	while (run->tok != NULL) {
-		run->tok->func(run->tok, bstate);
-		run->tok = run->tok->next;
+	Bcode *tok = run->tok;
+
+	while (tok != NULL && bstate->islocked == BLOCK_ISRUNNING) {
+		tok->func(tok, bstate);
+		tok = tok->next;
 	}
 }

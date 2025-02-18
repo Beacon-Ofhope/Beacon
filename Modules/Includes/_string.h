@@ -5,8 +5,6 @@
 
 #define _BSTRING    args->value.str_value
 
-Bobject *M_String();
-
-Bobject *concat_string(Bobject * args, Bobject * fun, bcon_State *bstate);
+Bobject *Bn_String();
 
 #endif

@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 //
-#include "Include/bapi.h"
 #include "Include/brepl.h"
 
 //
@@ -16,36 +17,46 @@
 #include "parser/Includes/lexer.h"
 #include "parser/Includes/parser.h"
 
+#include "Modules/Includes/_list.h"
+#include "Modules/Includes/_math.h"
+#include "Modules/Includes/_modules.h"
+#include "Modules/Includes/_share.h"
+#include "Modules/Includes/_socket.h"
 #include "Modules/Includes/_string.h"
+#include "Modules/Includes/_time.h"
+#include "Modules/Includes/_fs.h"
 
-char* open_program_file(const char* file_name){
-	// Open the file in read mode
-    FILE *fp = fopen(file_name, "r");
-
-    if (fp == NULL) {
-        printf("beacon: [Errno %d]: %s ... '%s'\n", errno, strerror(errno), file_name);
-        exit(0);
+char* open_program_file(const char* filename) {
+    FILE* code = fopen(filename, "rb");
+    if (code == NULL) {
+        fprintf(stderr, "Failed to open file: %s\n", filename);
+        return NULL;
     }
 
-    // Get the file size
-    fseek(fp, 0, SEEK_END);
-    const long fileLen = ftell(fp);
-    rewind(fp);
+    fseek(code, 0, SEEK_END);
+    size_t file_size = ftell(code);
+    rewind(code);
 
-    // Allocate memory for the buffer
-    char *buffer = malloc((fileLen + 1)); // +1 for null terminator
+    char* buffer = malloc(file_size + 1);
+
     if (buffer == NULL) {
-        perror("Error: Failed to allocate memory");
-        fclose(fp);
-        exit(0);
+        fprintf(stderr, "Memory allocation failed.\n");
+        fclose(code);
+        return NULL;
     }
 
-    // Read the entire file into the buffer
-    fread(buffer, 1, fileLen, fp);
-    buffer[fileLen] = '\0';
+    size_t bytes_read = fread(buffer, 1, file_size, code);
+    
+    if (bytes_read != file_size) {
+        fprintf(stderr, "Error reading from file.\n");
+        fclose(code);
+        free(buffer);
+        return NULL;
+    }
 
-    // Close the file
-    fclose(fp);
+    buffer[file_size] = '\0';
+
+    fclose(code);
     return buffer;
 }
 
@@ -60,16 +71,50 @@ void start_interpreter(const int argc, char *argv[]){
     }
 }
 
-bcon_State* make_bstate(){
-    bcon_State *bstate = calloc(sizeof(bcon_State), 1);
+void initiate_modules(bcon_State *bstate){
+    Stack* bheap = bstate->callStack[0];
 
-    Stack *memory = create_stack();
-    add_to_stack(memory, "print", bt_make_b_fun(print));
-    add_to_stack(memory, "input", bt_make_b_fun(input));
-    add_to_stack(memory, "string", M_String());
+    Bobject *share_module = Bn_Share();
+    Stack *builtins = share_module->value.module->attrs;
 
-    bstate->memory = memory;
+    add_to_stack(builtins, "List", Bn_List());
+    add_to_stack(builtins, "None", bstate->none);
+
+    add_to_stack(bheap, "True", get_from_stack(builtins, "True"));
+    add_to_stack(bheap, "False", get_from_stack(builtins, "False"));
+    add_to_stack(bheap, "None", bstate->none);
+    add_to_stack(bheap, "List", get_from_stack(builtins, "List"));
+    add_to_stack(bheap, "print", get_from_stack(builtins, "print"));
+    add_to_stack(bheap, "quit", get_from_stack(builtins, "quit"));
+    add_to_stack(bheap, "input", get_from_stack(builtins, "input"));
+    add_to_stack(bheap, "require", get_from_stack(builtins, "require"));
+    add_to_stack(bheap, "type", get_from_stack(builtins, "type"));
+
+    Stack *modules = create_stack(0);
+    add_to_stack(modules, "Share", share_module);
+    
+    bstate->modules = modules;
+}
+
+bcon_State* make_bstate(char *file){
+    bcon_State *bstate = malloc(sizeof(bcon_State));
+    
+    Bobject *None = malloc(sizeof(Bobject));
+    None->refs = 1000000;
+    None->type = BNONE;
+    bstate->none = None;
+
+    bstate->memory = create_stack(0);
     bstate->islocked = 2;
+    bstate->file = file;
+
+    bstate->callStack = malloc(sizeof(Stack*) * 1000);
+    bstate->callStack[0] = create_stack(0);
+    bstate->stackCapacity = 1000;
+    bstate->stackPos = 0;
+
+    // initiates after setting None
+    initiate_modules(bstate);
 
     return bstate;
 }
@@ -90,30 +135,103 @@ void run_executor(char* code, char* file_name, bcon_State* bstate){
     evaluator_start(evaluator, bstate);
 
     free(b_interpreter);
-}
 
-char* read_input(){
-    char* line = malloc(1025);
-    printf(">> ");
-    fgets(line, 1024, stdin);
-   
-    return line;
-}
+    if(bstate->islocked == BLOCK_ERRORED){
+        if (bstate->return_value == NULL){
+            printf("Help send feedback for this missing error log.\n");
 
-void start_console(){
-    int run = 1;
-    bcon_State* bstate = make_bstate();
+        } else {
+            Stack *error = bstate->return_value->value.bface->attrs;
 
-    printf("Hey its Beacon 0.0.1 Copyright (C) \n");
+            printf("  File '%s'  line %d\n\n", get_from_stack(error, "file")->value.str_value,
+                                               (int)(get_from_stack(error, "line")->value.num_value));
 
-    while (run){
-        run_executor(read_input(), "__stdin__", bstate);
+            switch ((int)(get_from_stack(error, "errno")->value.num_value)) {
+                case BERRNO:
+                    printf("%s: %s\n",  get_from_stack(error, "type")->value.str_value,
+                                        get_from_stack(error, "message")->value.str_value );
+                    break;
+                default:
+                    printf("%s: %s\n", get_from_stack(error, "type")->value.str_value,
+                           strerror((int)(get_from_stack(error, "errno")->value.num_value)));
+                    break;
+            }
+            free(bstate->return_value);
+        }
     }
 }
 
-void start_vm(char *argv[]){
-    char *code = open_program_file(argv[1]);
-    bcon_State *bstate = make_bstate();
+char* read_input(){
+    char* line;
+    printf(">> ");
 
-    run_executor(code, argv[1], bstate);
+    int ret = scanf("%s", line);
+    
+    if (ret == EOF)
+        return NULL;
+
+    return strdup(line);
+}
+
+void start_console(){
+    bcon_State* bstate = make_bstate("__stdin__");
+
+    printf("Hey its Beacon 0.0.1 Copyright (C) \n");
+    char* code;
+
+    while (1){
+        code = read_input();
+
+        if (code == NULL){
+            printf("Encountered an input error, please retry.\n");
+            exit(1);
+        }
+
+        run_executor(code, "__stdin__", bstate);
+    }
+}
+
+char* mk_absolute_path(char* name){
+    char *ret = realpath(name, NULL);
+
+    if (ret == NULL)
+        return name;
+
+    errno = 0;
+	return strdup(ret);
+}
+
+char* mk_base_folder(char* file) {
+    size_t len = strlen(file);
+
+    for (size_t i = len; i > 0; i--){
+        if (file[i] == '/'){
+            char *folder = malloc(i+2);
+            memcpy(folder, file, i+1);
+            folder[i+1] = '\0';
+
+            return folder;
+        }
+    }
+
+    char *folder2 = malloc(2);
+    folder2[0] ='/';
+    folder2[1] ='\0';
+
+    return folder2;
+}
+
+void start_vm(char *argv[]){
+    if (access(argv[1], F_OK)) {
+        printf("beacon error: No such file '%s'", argv[1]);
+        exit(1);
+    }
+
+    char* filename = mk_absolute_path(argv[1]);
+    char *code = open_program_file(filename);
+
+    bcon_State *bstate = make_bstate(filename);
+    bstate->base_folder = mk_base_folder(filename);
+
+    run_executor(code, filename, bstate);
 }

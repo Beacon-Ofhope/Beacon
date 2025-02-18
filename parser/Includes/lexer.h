@@ -18,11 +18,13 @@ typedef enum
     TK_COMMA,
     TK_DOT,
     TK_FUN,
+    TK_THROW,
     TK_RETURN,
     TK_CLASS,
     TK_WHILE,
     TK_FOR,
     TK_IMPORT,
+    TK_FROM,
     TK_AS,
     TK_IN,
     TK_NOT,
@@ -33,9 +35,12 @@ typedef enum
     TK_ELIF,
     TK_ELSE,
     TK_NONE,
+    TK_TRY,
+    TK_CATCH,
     TK_COLON,
     TK_SEMICOLON,
     TK_BREAK,
+    TK_FACE,
     TK_CONTINUE,
     TK_ADD_SUB,
     TK_MULT_DIV,
@@ -52,11 +57,11 @@ typedef struct TOKEN{
 
 typedef struct LEX_UP{
 	char tok;
-	char * code;
-	char * file;
-	unsigned int pos;
-	unsigned int line;
-	unsigned int code_len;
+    unsigned short line;
+    char *code;
+    char *file;
+    unsigned int pos;
+    unsigned int code_len;
 
 	struct TOKEN* start;
 	struct TOKEN* resent;

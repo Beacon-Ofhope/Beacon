@@ -3,34 +3,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "Includes/_imports.h"
+#include "Includes/_string.h"
+#include "Includes/_modules.h"
 #include "../parser/Includes/bobject.h"
 #include "../parser/Includes/bytecode.h"
 
-#include "Includes/_string.h"
 
-Bobject *make_string(char *value){
-    Bobject *str = calloc(sizeof(Bobject), 1);
-    str->value.str_value = value;
-    str->type = B_STR;
+Bobject* concat_string_bn(Bobject *args, Bobject *fun, bcon_State *bstate) {
+    if (!args || args->value.num_value < 2)
+        return _type_error(bstate, "'String.concat()' expects many args (...)");
 
-    return str;
+    Bobject** arg = BARG;
+    char* res = arg[0]->value.str_value;
+
+    for (int i = 1; i < args->value.num_value; i++)
+        res = my_concat(res, arg[i]->value.str_value, 0);
+
+    return mk_string(res, bstate);
 }
 
-Bobject *concat_string(Bobject *args, Bobject *fun, bcon_State *bstate) {
-    Bobject *arg = args;
-    char *value = "";
-
-    while (args != NULL){
-        strcat(value, _BSTRING);
-        args = args->next;
-    }
-
-    printf("%s..\n", value);
-
-    return make_string(value);
-}
-
-Bobject *uppercase_string(Bobject *args, Bobject *fun, bcon_State *bstate) {
+Bobject *uppercase_string_bn(Bobject *args, Bobject *fun, bcon_State *bstate) {
     if (args == NULL){
         return args;
     }
@@ -42,10 +35,10 @@ Bobject *uppercase_string(Bobject *args, Bobject *fun, bcon_State *bstate) {
     }
 
     up[strlen(_BSTRING)] = '\0';
-    return make_string(up);
+    return mk_string(up, bstate);
 }
 
-Bobject *lowercase_string(Bobject *args, Bobject *fun, bcon_State *bstate) {
+Bobject *lowercase_string_bn(Bobject *args, Bobject *fun, bcon_State *bstate) {
     if (args == NULL){
         return args;
     }
@@ -57,18 +50,23 @@ Bobject *lowercase_string(Bobject *args, Bobject *fun, bcon_State *bstate) {
     }
 
     low[strlen(_BSTRING)] = '\0';
-    return make_string(low);
+    return mk_string(low, bstate);
 }
 
+Bobject *Bn_String() {
+    Stack *M = create_stack(4);
 
-Bobject *M_String() {
-    Bobject *module = calloc(sizeof(Bobject), 1);
+    add_to_stack(M, "concat", mk_module_fun("[Function String.concat]", concat_string_bn, NULL));
+    add_to_stack(M, "uppercase", mk_module_fun("[Function String.uppercase]", uppercase_string_bn, NULL));
+    add_to_stack(M, "lowercase", mk_module_fun("[Function String.lowercase]", lowercase_string_bn, NULL));
 
-    Stack *M = create_stack();
-    add_to_stack(M, "concat", bt_make_b_fun(concat_string));
-    add_to_stack(M, "up_case", bt_make_b_fun(uppercase_string));
-    add_to_stack(M, "low_case", bt_make_b_fun(lowercase_string));
+    bmodule *mod = malloc(sizeof(bmodule));
+    mod->attrs = M;
 
-    module->attrs = M;
-    return module;
+    Bobject *bin = mk_safe_Bobject();
+    bin->value.str_value = "[Module String]";
+    bin->type = BMODULE;
+    bin->d = mod;
+
+    return bin;
 }

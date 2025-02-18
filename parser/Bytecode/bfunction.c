@@ -7,121 +7,123 @@
 #include "../Includes/bcode.h"
 #include "../Includes/bobject.h"
 #include "../Includes/bytecode.h"
-
-
-Param *mk_param(Bcode *code){
-    char *name = code->value.str_value;
-    Param *param = malloc(sizeof(Param));
-    param->next = NULL;
-    param->value = name;
-
-    return param;
-}
-
-Bobject *mk_def_param(Bcode *arg, bcon_State *bstate){
-    Bobject *obj = mk_safe_Bobject();
-    obj->left = arg->left->func(arg->left, bstate);
-    obj->value.str_value = arg->value.str_value;
-
-    return obj;
-}
+#include "../../Modules/Includes/_imports.h"
 
 Bobject *bt_return(Bcode *code, bcon_State *bstate){
-    bstate->return_value = code->left->func(code->left, bstate);
+    Bcode *rt = code->value.data;
+
+    bstate->return_value = rt->func(rt, bstate);
     bstate->islocked = BLOCK_RETURNED;
-    return b_None();
+    return bstate->none;
 }
 
 Bobject *bt_mk_fun(Bcode *code, bcon_State *bstate){
-    Bobject *fun = mk_safe_Bobject();
-    char *name = (code->value.str_value);
-    fun->value.str_value = name;
-    fun->type = B_FN;
+    opmkfun *f = code->value.pmkfun;
 
-    // default objects
-    Bcode *def_arg = code->left->left;
-    Bobject *start_arg = NULL;
-    Bobject *recent_arg = NULL;
+    bfunction* fn = malloc(sizeof(bfunction));
+    fn->func = bt_exec_function;
+    fn->code = f->code_block;
+    fn->params = f->params;
+    fn->bstate = bstate;
+    fn->this = NULL;
+    fn->name = f->name;
+    fn->count = (unsigned char)(code->line);
 
-    // parameter names
-    Param *params = NULL;
-    Param *recent = NULL;
+    Bobject* bin = malloc(sizeof(Bobject));
+    bin->type = BFUNCTION;
+    bin->value.bfun = fn;
+    bin->refs = 0;
 
-    while (def_arg != NULL){
-        append_param(&params, &recent, mk_param(def_arg));
-
-        if (def_arg->type == OP_MAKE_VARIABLE){
-            append_fun_args_data(&start_arg, &recent_arg, mk_def_param(def_arg, bstate));
-        }
-
-        def_arg = def_arg->next;
-    }
-
-    fun->left = start_arg;
-    fun->params = params;
-    fun->code = code->right;
-    fun->func = bt_exec_function;
-    fun->this = b_None();
-
-    add_to_stack(bstate->memory, name, fun);
-    return b_None();
+    add_to_stack(bstate->callStack[bstate->stackPos], f->name, bin);
+    return bstate->none;
 }
 
 Bobject* bt_call_function(Bcode* code, bcon_State *bstate){
-    Bobject *fun = code->left->func(code->left, bstate);
+    opcall *c = code->value.call;
+    Bobject *fun = c->callee->func(c->callee, bstate);
 
-    // executing given arguments before adding them to stack
-    Bobject* start_arg = NULL;
-    Bobject* recent_arg = NULL;
+    if (bstate->islocked == BLOCK_ERRORED)
+        return bstate->none;
 
-    Bcode* raw_args = code->right;
+    bargs *argv = c->argv;
 
-    while (raw_args != NULL) {
-        append_fun_args_data(&start_arg, &recent_arg, raw_args->func(raw_args, bstate));
-        raw_args = raw_args->next;
+    if (c->count) {
+        int count = c->count;
+
+        Bcode* args = c->args;
+        Bobject **argv_list = argv->argv;
+
+        for(int i = 0; i < count; ++i) {
+            argv_list[i] = args->func(args, bstate);
+            args = args->next;
+
+            if (bstate->islocked == BLOCK_ERRORED)
+                return bstate->none;
+        }
     }
 
-    Bobject *return_value = fun->func(start_arg, fun, bstate);
-    return return_value;
-}
+    Bobject* returns;
 
-Bobject *bt_exec_function(Bobject *args, Bobject *fun, bcon_State *bstate){
-    Param *params = fun->params;
-    Bobject *arg = args;
+    switch (fun->type) {
+        case BFUNCTION:
+            bfunction *bf = fun->value.bfun;
+            returns = bf->func(argv, bf, bstate);
+            break;
 
-    add_to_stack(bstate->memory, "this", fun->this);
+        case BFUNCTION2:
+            bfunction2 *bf2 = fun->value.bfun2;
+            returns = bf2->func(argv, bf2, bstate);
+            break;
 
-    while (params != NULL && arg != NULL){
-        add_to_stack(bstate->memory, params->value, object_copy(arg));
-        params = params->next;
-        arg = arg->next;
+        case BTYPE:
+            btype *typ = fun->value.btype;
+            returns = typ->func(argv, typ, bstate);
+            break;
+
+        default:
+            returns = _type_error(bstate, my_concat(check_type(fun), " data is not callable.", 0), code->line);
+            break;
     }
 
-    block_evaluator_start(fun->code, bstate);
-    return b_None();
+    return returns;
 }
 
-// making function arguments
-void append_fun_args_data(Bobject** start, Bobject** recent, Bobject* new_token) {
-	if (*start == NULL) {
-	    *start = new_token;
-        *recent = new_token;
-    } else {
-        (*recent)->next = new_token;
-        *recent = new_token;
+Bobject *bt_exec_function(bargs *args, bfunction *fn, bcon_State *bstate){
+    if (args->count != fn->count)
+        return _type_error(bstate, "fn() expects 2 arguments but was given 1.", args->line);
+
+    ++(bstate->stackPos);
+
+    if (bstate->stackPos == bstate->stackCapacity){
+        --(bstate->stackPos);
+        return _runtime_error(bstate, "a stackOverflow occured while calling a function");
     }
+
+    Stack *callStack = create_callStack(7);
+    bstate->callStack[bstate->stackPos] = callStack;
+
+    if (fn->this)
+        add_to_stack(callStack, "this", fn->this);
+
+    int count = args->count;
+    char **params = fn->params;
+
+    Bobject **argv = args->argv;
+
+    for (int i = 0; i < count; ++i)
+        add_to_stack(callStack, params[i], argv[i]);
+
+    block_evaluator_start(fn->code, bstate);
+
+    delete_stack(callStack);
+    --(bstate->stackPos);
+
+    if (bstate->islocked == BLOCK_RETURNED) {
+        bstate->islocked = BLOCK_ISRUNNING;
+        return bstate->return_value;
+    }
+
+    return bstate->none;
 }
 
-Bytec* bytec_read(Bcode* toks){
-	Bytec* pls = calloc(sizeof(Bytec), 1);
-	pls->tok = toks;
 
-    return pls;
-}
-
-Bobject *bt_make_b_fun(Bobject *(*fun)(Bobject *, Bobject *, bcon_State *)){
-    Bobject *fn = mk_safe_Bobject();
-    fn->func = fun;
-	fn->type = B_FN;
-	return fn;
-}

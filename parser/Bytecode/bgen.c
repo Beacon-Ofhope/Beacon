@@ -12,7 +12,7 @@
 
 Bobject* mk_safe_Bobject(){
     Bobject* obj = malloc(sizeof(Bobject));
-    obj->next = NULL;
+    obj->refs = 0;
     return obj;
 }
 
@@ -35,14 +35,3 @@ void append_param(Param** start, Param** recent, Param* new_token) {
     }
 }
 
-Bobject *object_copy(Bobject *copy){
-    Bobject *obj = mk_safe_Bobject();
-    obj->type = copy->type;
-    obj->value = copy->value;
-    obj->params = copy->params;
-    obj->func = copy->func;
-    obj->code = copy->code;
-    obj->this = copy->this;
-
-    return obj;
-}

@@ -5,7 +5,8 @@
 #include "Include/brepl.h"
 
 
-void main(const int argc, char* argv[]){
+int main(const int argc, char* argv[]){
     start_interpreter(argc, argv);
+    return 0;
 }
 

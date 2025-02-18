@@ -1,4 +1,0 @@
-
-// VALNERBILITIES
-parser_function ===== string name copying
-parser_class

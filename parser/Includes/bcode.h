@@ -5,8 +5,7 @@
 #include "parser.h"
 #include "bobject.h"
 
-typedef enum
-{
+typedef enum {
     OP_NUMBER,
     OP_STRING,
     OP_BOOL,
@@ -25,26 +24,100 @@ typedef enum
     OP_WHILE,
     OP_BREAK,
     OP_CONTINUE,
+    OP_TRY_CATCH,
+    OP_THROW,
+    OP_FACE,
     OP_NOT,
+    OP_IMPORT,
+    OP_IMPORT_INCLUDE,
     OP_BINARY_OPERATION,
 } OP_CODE;
 
 typedef struct BCODE {
     OP_CODE type;
-    char* name;
-    unsigned int line;
+    unsigned short line;
+
     union {
-        char* str_value;
-        double num_value;
+        void *d;
+        char *name;
+        double number;
+		struct _opbinop *binop;
+        struct _opdict *dict;
+        struct _opgattr *pget;
+        struct _opsattr *pset;
+        struct _opcall *call;
+        struct _optry *ptry;
+        struct _opmkvar *mkvar;
+        struct _opmkfun *pmkfun;
+        struct _opmkclass *pmkclass;
+        struct _opwhile *pwhile;
+        struct BCODE *data;
+        struct _opwhile **pif;
+        struct _pimport *pimport;
     } value;
 
-	struct BCODE* left;
-    struct BCODE* right;
-    Bobject* (*func)(struct BCODE*, bcon_State*);
+    Bobject *(*func)(struct BCODE *, bcon_State *);
     struct BCODE* next;
 } Bcode;
 
-typedef struct BCODE_UP{
+typedef struct _opbinop {
+	Bcode *left;
+	Bcode *right;
+} opbinop;
+
+typedef struct _opdict {
+	Bcode *values;
+	char **keys;
+} opdict;
+
+typedef struct _opgattr {
+	char *key;
+	Bcode *parent;
+} opgattr;
+
+typedef struct _opsattr {
+	char *key;
+	char *operator;
+	Bcode *parent;
+	Bcode *value;
+} opsattr;
+
+typedef struct _optry {
+    char *error_name;
+    Bcode *tried;
+    Bcode *retry;
+} optry;
+
+typedef struct _opmkclass {
+	char *name;
+	Bcode *exts;
+	Bcode *code_block;
+} opmkclass;
+
+typedef struct _opmkfun {
+	char *name;
+	Bcode *code_block;
+	char **params;
+} opmkfun;
+
+typedef struct _opwhile {
+	Bcode *condition;
+	Bcode *code_block;
+} opwhile;
+
+typedef struct _opmkvar {
+	char *key;
+	Bcode *value;
+} opmkvar;
+
+typedef struct _opcall {
+	unsigned char count;
+    Bcode *args;
+    Bcode *callee;
+    bargs *argv;
+} opcall;
+
+typedef struct BCODE_UP {
 	AstNode * tok;
     char * file;
     Bcode * start;
@@ -54,6 +127,8 @@ typedef struct BCODE_UP{
 Inter * inter_read(const Parser * pls);
 
 void inter_interpret(Inter * pls);
+
+Bcode *i_code_block(Inter *pls, AstNode *ast);
 
 Bcode *i_eval_ast(AstNode *value, Inter *pls);
 
